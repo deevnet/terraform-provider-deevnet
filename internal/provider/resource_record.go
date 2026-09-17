@@ -58,6 +58,26 @@ func (r *recordResource) Configure(_ context.Context, req resource.ConfigureRequ
 	r.client = clientFrom(req.ProviderData, &resp.Diagnostics)
 }
 
+// See the tenant resource's ModifyPlan.
+func (r *recordResource) ModifyPlan(ctx context.Context, req resource.ModifyPlanRequest, resp *resource.ModifyPlanResponse) {
+	if req.State.Raw.IsNull() || req.Plan.Raw.IsNull() {
+		return
+	}
+	var state recordModel
+	resp.Diagnostics.Append(req.State.Get(ctx, &state)...)
+	if resp.Diagnostics.HasError() || !state.Present.Equal(types.BoolValue(false)) {
+		return
+	}
+	var plan recordModel
+	resp.Diagnostics.Append(req.Plan.Get(ctx, &plan)...)
+	if resp.Diagnostics.HasError() {
+		return
+	}
+	plan.Present = types.BoolUnknown()
+	plan.FQDN = types.StringUnknown()
+	resp.Diagnostics.Append(resp.Plan.Set(ctx, plan)...)
+}
+
 func (r *recordResource) Create(ctx context.Context, req resource.CreateRequest, resp *resource.CreateResponse) {
 	var plan recordModel
 	resp.Diagnostics.Append(req.Plan.Get(ctx, &plan)...)

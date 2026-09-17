@@ -137,6 +137,54 @@ func (r *tenantResource) Configure(_ context.Context, req resource.ConfigureRequ
 	r.client = clientFrom(req.ProviderData, &resp.Diagnostics)
 }
 
+// ModifyPlan is what turns `present: false` into a restore. Every issued
+// attribute keeps its state value in a plan (UseStateForUnknown), so a tenant
+// the API no longer has produced no diff at all: `terraform apply` reported "no
+// changes" while the substrate held no tenant. Marking them unknown gives
+// Terraform an update to make, and Update sends the index and secrets back.
+//
+// They are ALL marked unknown, not just `present`: a restore onto an index
+// another tenant took returns different numbering, and a computed attribute that
+// was not unknown in the plan and changes in apply is an error rather than a
+// new value.
+func (r *tenantResource) ModifyPlan(ctx context.Context, req resource.ModifyPlanRequest, resp *resource.ModifyPlanResponse) {
+	if req.State.Raw.IsNull() || req.Plan.Raw.IsNull() {
+		return // creating or destroying
+	}
+	var state tenantModel
+	resp.Diagnostics.Append(req.State.Get(ctx, &state)...)
+	if resp.Diagnostics.HasError() || !state.Present.Equal(types.BoolValue(false)) {
+		return
+	}
+	var plan tenantModel
+	resp.Diagnostics.Append(req.Plan.Get(ctx, &plan)...)
+	if resp.Diagnostics.HasError() {
+		return
+	}
+	plan.Present = types.BoolUnknown()
+	plan.Status = types.StringUnknown()
+	plan.Index = types.Int64Unknown()
+	plan.VRFVNI = types.Int64Unknown()
+	plan.VNetVNIBase = types.Int64Unknown()
+	plan.Subnet = types.StringUnknown()
+	plan.Gateway = types.StringUnknown()
+	plan.ControllerID = types.StringUnknown()
+	plan.Node = types.StringUnknown()
+	plan.DNSZone = types.StringUnknown()
+	plan.DNSReverseZone = types.StringUnknown()
+	plan.DNSUpdateServer = types.StringUnknown()
+	plan.TSIGKeyName = types.StringUnknown()
+	plan.TSIGAlgorithm = types.StringUnknown()
+	plan.TSIGSecret = types.StringUnknown()
+	plan.StateEndpoint = types.StringUnknown()
+	plan.StateBucket = types.StringUnknown()
+	plan.StateKeyPrefix = types.StringUnknown()
+	plan.StateAccessKey = types.StringUnknown()
+	plan.StateSecretKey = types.StringUnknown()
+	plan.APIToken = types.StringUnknown()
+	resp.Diagnostics.Append(resp.Plan.Set(ctx, plan)...)
+}
+
 func (r *tenantResource) Create(ctx context.Context, req resource.CreateRequest, resp *resource.CreateResponse) {
 	var plan tenantModel
 	resp.Diagnostics.Append(req.Plan.Get(ctx, &plan)...)
@@ -148,6 +196,9 @@ func (r *tenantResource) Create(ctx context.Context, req resource.CreateRequest,
 		resp.Diagnostics.AddError("Creating the tenant failed", err.Error())
 		return
 	}
+	// The enrollment token this apply was configured with has just been spent.
+	// Everything after this - workloads, names - goes with the tenant's own.
+	r.client.UseToken(t.APIToken)
 	resp.Diagnostics.Append(resp.State.Set(ctx, tenantFrom(t, plan))...)
 }
 
@@ -190,6 +241,7 @@ func (r *tenantResource) Update(ctx context.Context, req resource.UpdateRequest,
 		resp.Diagnostics.AddError("Restoring the tenant failed", err.Error())
 		return
 	}
+	r.client.UseToken(t.APIToken)
 	if t.Index != state.Index.ValueInt64() {
 		resp.Diagnostics.AddWarning("The tenant was issued a new index",
 			"Another tenant holds the index this one had, so the API issued index "+
