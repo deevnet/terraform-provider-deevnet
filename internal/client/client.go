@@ -13,15 +13,39 @@ import (
 	"net/http"
 	"os"
 	"strings"
+	"sync"
 	"time"
 )
 
 // Client calls the Deevnet API with one bearer token: an operator token, a
 // tenant's own token, or a single-use enrollment token.
 type Client struct {
-	base  string
+	base string
+	mu   sync.RWMutex
+	// Guarded because Terraform applies resources concurrently, and the token
+	// changes mid-run: see UseToken.
 	token string
 	http  *http.Client
+}
+
+// UseToken switches the token every later call carries. A first apply is
+// configured with the single-use enrollment token, which creating the tenant
+// spends; the tenant's own token comes back in that response, and its workloads
+// and names are created with it in the same run. Without this the apply would
+// get as far as the tenant and then fail 401 on everything after it.
+func (c *Client) UseToken(token string) {
+	if token == "" {
+		return
+	}
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	c.token = token
+}
+
+func (c *Client) bearer() string {
+	c.mu.RLock()
+	defer c.mu.RUnlock()
+	return c.token
 }
 
 type Config struct {
@@ -204,7 +228,7 @@ func (c *Client) do(ctx context.Context, method, path string, in, out any) error
 	if err != nil {
 		return err
 	}
-	req.Header.Set("Authorization", "Bearer "+c.token)
+	req.Header.Set("Authorization", "Bearer "+c.bearer())
 	req.Header.Set("Accept", "application/json")
 	if in != nil {
 		req.Header.Set("Content-Type", "application/json")

@@ -98,6 +98,33 @@ func (r *workloadResource) Configure(_ context.Context, req resource.ConfigureRe
 	r.client = clientFrom(req.ProviderData, &resp.Diagnostics)
 }
 
+// See the tenant resource's ModifyPlan: `present: false` has to become a diff,
+// or an apply after the registry was lost reports no changes and leaves the
+// workload unrecorded. Re-posting it adopts the VM that is already there.
+func (r *workloadResource) ModifyPlan(ctx context.Context, req resource.ModifyPlanRequest, resp *resource.ModifyPlanResponse) {
+	if req.State.Raw.IsNull() || req.Plan.Raw.IsNull() {
+		return
+	}
+	var state workloadModel
+	resp.Diagnostics.Append(req.State.Get(ctx, &state)...)
+	if resp.Diagnostics.HasError() || !state.Present.Equal(types.BoolValue(false)) {
+		return
+	}
+	var plan workloadModel
+	resp.Diagnostics.Append(req.Plan.Get(ctx, &plan)...)
+	if resp.Diagnostics.HasError() {
+		return
+	}
+	plan.Present = types.BoolUnknown()
+	plan.Status = types.StringUnknown()
+	plan.Ordinal = types.Int64Unknown()
+	plan.VMID = types.Int64Unknown()
+	plan.MAC = types.StringUnknown()
+	plan.Address = types.StringUnknown()
+	plan.FQDN = types.StringUnknown()
+	resp.Diagnostics.Append(resp.Plan.Set(ctx, plan)...)
+}
+
 func (r *workloadResource) Create(ctx context.Context, req resource.CreateRequest, resp *resource.CreateResponse) {
 	var plan workloadModel
 	resp.Diagnostics.Append(req.Plan.Get(ctx, &plan)...)
