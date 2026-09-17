@@ -1,0 +1,6 @@
+terraform-provider-deevnet
+bin/
+dist/
+.terraform/
+*.tfstate
+*.tfstate.*
