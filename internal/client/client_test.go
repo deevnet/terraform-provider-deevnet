@@ -3,6 +3,7 @@ package client
 import (
 	"context"
 	"errors"
+	"io"
 	"net/http"
 	"net/http/httptest"
 	"strings"
@@ -56,5 +57,50 @@ func TestNotFoundAndErrorMessages(t *testing.T) {
 	}
 	if _, err := New(Config{Endpoint: srv.URL, Token: "t", CACertificate: "/nonexistent"}); err == nil {
 		t.Error("a missing CA file was accepted")
+	}
+}
+
+// An API that does not report secrets_stored is older than the field, and must
+// not be read as "cannot read its secrets" - that would replan a resupply on
+// every apply forever.
+func TestSecretsStoredIsThreeStated(t *testing.T) {
+	for _, tc := range []struct {
+		name string
+		body string
+		want string // "absent", "true" or "false"
+	}{
+		{"older API omits it", `{"name":"tdemo","index":1}`, "absent"},
+		{"readable", `{"name":"tdemo","index":1,"secrets_stored":true}`, "true"},
+		{"unreadable", `{"name":"tdemo","index":1,"secrets_stored":false}`, "false"},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+				w.Header().Set("Content-Type", "application/json")
+				_, _ = io.WriteString(w, tc.body)
+			}))
+			defer srv.Close()
+			c, err := New(Config{Endpoint: srv.URL, Token: "t"})
+			if err != nil {
+				t.Fatal(err)
+			}
+			got, err := c.GetTenant(context.Background(), "tdemo")
+			if err != nil {
+				t.Fatal(err)
+			}
+			switch tc.want {
+			case "absent":
+				if got.SecretsStored != nil {
+					t.Fatalf("want nil, got %v", *got.SecretsStored)
+				}
+			case "true":
+				if got.SecretsStored == nil || !*got.SecretsStored {
+					t.Fatalf("want true, got %v", got.SecretsStored)
+				}
+			case "false":
+				if got.SecretsStored == nil || *got.SecretsStored {
+					t.Fatalf("want false, got %v", got.SecretsStored)
+				}
+			}
+		})
 	}
 }

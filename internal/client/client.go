@@ -115,6 +115,12 @@ type Tenant struct {
 		SecretKey string `json:"secret_key,omitempty"`
 	} `json:"state"`
 	APIToken string `json:"api_token,omitempty"`
+	// SecretsStored is false when the API holds secrets for this tenant that it
+	// can no longer read, which is what a rebuilt or rotated Transit key leaves
+	// behind. The tenant's state is the authoritative copy, so the answer is to
+	// send them again. An API that does not report the field at all is older than
+	// it: see tenantFrom.
+	SecretsStored *bool `json:"secrets_stored,omitempty"`
 }
 
 // CreateTenantRequest creates a tenant, or restores one: a restore carries the
