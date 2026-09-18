@@ -36,6 +36,22 @@ resource "deevnet_dns_record" "alias" {
   name    = "api"
   address = deevnet_workload.web.address
 }
+
+resource "deevnet_iot_wifi_key" "devices" {
+  tenant      = deevnet_tenant.this.name
+  name        = "devices"
+  trust_class = "iot"
+}
+
+output "wifi" {
+  # Flash devices with these. Never hardcode the SSID: the same trust class is
+  # a different SSID at another site.
+  value     = {
+    ssid = deevnet_iot_wifi_key.devices.ssid
+    psk  = deevnet_iot_wifi_key.devices.psk
+  }
+  sensitive = true
+}
 ```
 
 ## What a tenant holds
@@ -55,6 +71,7 @@ is their authoritative copy (ADR-0015 §4). Keep that state where ADR-0007 says.
 | `deevnet_tenant` | the tenant: index, numbering, DNS zone and key, state-store credential, API token |
 | `deevnet_workload` | a VM in the tenant's network; the API derives its VMID, MAC and address |
 | `deevnet_dns_record` | a name in the tenant's zone, with its PTR |
+| `deevnet_iot_wifi_key` | a Wi-Fi key for the tenant's IoT devices, bound to its trust class's VLAN |
 
 ## Restore instead of recreate
 
@@ -66,6 +83,15 @@ Instead `present` goes `false` when the API no longer holds the object, which ma
 update, and the update sends the index and secrets back from state. The API keeps that index when it
 is free, and issues a new one only when another tenant took it (ADR-0012 §5, ADR-0015 §5). That is a
 deliberate exception, confined to these resources.
+
+**A Wi-Fi key is the sharpest case**, because the thing at the other end is a device in a wall. The
+key in state is what its devices were flashed with, so a restore sends it back and the controller is
+made to match them. `secrets_stored: false` triggers the same path, for a key the API still lists
+but can no longer read.
+
+The flip side is worth saying plainly: **`terraform apply -replace`, or removing and re-adding the
+block, issues a NEW key, and every device flashed with the old one stops associating until it is
+reflashed.** There is no guard against that, because revoking is sometimes exactly what you mean.
 
 ## Development
 

@@ -188,6 +188,44 @@ func (c *Client) DeleteWorkload(ctx context.Context, tenant, name string) error 
 	return c.do(ctx, http.MethodDelete, "/v1/tenants/"+tenant+"/workloads/"+name, nil, nil)
 }
 
+// WiFiKey is a tenant's PPSK key for one IoT trust class (ADR-0012 §3).
+type WiFiKey struct {
+	Tenant     string `json:"tenant"`
+	Name       string `json:"name"`
+	TrustClass string `json:"trust_class"`
+	// SSID and VLAN are reported by the API, never chosen by the tenant.
+	SSID   string `json:"ssid"`
+	VLAN   int64  `json:"vlan"`
+	Status string `json:"status"`
+	// PSK comes back on a create only. A read answers SecretsStored instead.
+	PSK           string `json:"psk,omitempty"`
+	SecretsStored bool   `json:"secrets_stored"`
+}
+
+type PutWiFiKeyRequest struct {
+	Name       string `json:"name"`
+	TrustClass string `json:"trust_class"`
+	// PSK is sent only to restore a key the tenant already holds, so the
+	// controller is made to match devices already flashed (ADR-0012 §5).
+	PSK string `json:"psk,omitempty"`
+}
+
+func (c *Client) PutWiFiKey(ctx context.Context, tenant string, req PutWiFiKeyRequest) (WiFiKey, error) {
+	var out WiFiKey
+	err := c.do(ctx, http.MethodPost, "/v1/tenants/"+tenant+"/wifi-keys", req, &out)
+	return out, err
+}
+
+func (c *Client) GetWiFiKey(ctx context.Context, tenant, name string) (WiFiKey, error) {
+	var out WiFiKey
+	err := c.do(ctx, http.MethodGet, "/v1/tenants/"+tenant+"/wifi-keys/"+name, nil, &out)
+	return out, err
+}
+
+func (c *Client) DeleteWiFiKey(ctx context.Context, tenant, name string) error {
+	return c.do(ctx, http.MethodDelete, "/v1/tenants/"+tenant+"/wifi-keys/"+name, nil, nil)
+}
+
 // Record is a name the tenant publishes beside its workloads'.
 type Record struct {
 	Name    string `json:"name"`
