@@ -30,8 +30,11 @@ func NewTenantResource() resource.Resource { return &tenantResource{} }
 type tenantModel struct {
 	Name    types.String `tfsdk:"name"`
 	Present types.Bool   `tfsdk:"present"`
-	Status  types.String `tfsdk:"status"`
-	Index   types.Int64  `tfsdk:"index"`
+	// SecretsStored false means the API cannot read the secrets it holds for this
+	// tenant, and this state's copies are the ones that put it right.
+	SecretsStored types.Bool   `tfsdk:"secrets_stored"`
+	Status        types.String `tfsdk:"status"`
+	Index         types.Int64  `tfsdk:"index"`
 
 	VRFVNI      types.Int64  `tfsdk:"vrf_vni"`
 	VNetVNIBase types.Int64  `tfsdk:"vnet_vni_base"`
@@ -94,6 +97,12 @@ func (r *tenantResource) Schema(_ context.Context, _ resource.SchemaRequest, res
 				MarkdownDescription: "Whether the API still holds this tenant. False after the API's registry is lost, " +
 					"which makes the next apply restore it from this state rather than create a new one.",
 			},
+			"secrets_stored": schema.BoolAttribute{
+				Computed: true,
+				MarkdownDescription: "Whether the API can still read the secrets it holds for this tenant. " +
+					"False after its Transit key is rebuilt or rotated past them, which makes the next apply " +
+					"send this state's copies again - they are the authoritative ones.",
+			},
 			"status":            computedString("`provisioning` or `ready`."),
 			"index":             computedInt("The tenant index every identifier derives from (ADR-0002)."),
 			"vrf_vni":           computedInt("VRF VXLAN id."),
@@ -137,7 +146,12 @@ func (r *tenantResource) Configure(_ context.Context, req resource.ConfigureRequ
 	r.client = clientFrom(req.ProviderData, &resp.Diagnostics)
 }
 
-// ModifyPlan is what turns `present: false` into a restore. Every issued
+// ModifyPlan turns the two conditions a Read can discover into an apply that
+// fixes them: the tenant is gone from the API, or the API cannot read the secrets
+// it holds for it. Both are answered from this state, which holds the
+// authoritative copies (ADR-0015 §4), and neither produces a diff on its own.
+//
+// Every issued
 // attribute keeps its state value in a plan (UseStateForUnknown), so a tenant
 // the API no longer has produced no diff at all: `terraform apply` reported "no
 // changes" while the substrate held no tenant. Marking them unknown gives
@@ -153,7 +167,12 @@ func (r *tenantResource) ModifyPlan(ctx context.Context, req resource.ModifyPlan
 	}
 	var state tenantModel
 	resp.Diagnostics.Append(req.State.Get(ctx, &state)...)
-	if resp.Diagnostics.HasError() || !state.Present.Equal(types.BoolValue(false)) {
+	if resp.Diagnostics.HasError() {
+		return
+	}
+	gone := state.Present.Equal(types.BoolValue(false))
+	unreadable := state.SecretsStored.Equal(types.BoolValue(false))
+	if !gone && !unreadable {
 		return
 	}
 	var plan tenantModel
@@ -161,6 +180,22 @@ func (r *tenantResource) ModifyPlan(ctx context.Context, req resource.ModifyPlan
 	if resp.Diagnostics.HasError() {
 		return
 	}
+
+	// The API holds this tenant but cannot read its secrets - a Transit key
+	// rebuilt or rotated past them. Only the secrets need sending again; the index
+	// and everything derived from it are unchanged, because the registry row is
+	// still there. Marking the whole tenant unknown here would show a plan that
+	// implies the network is about to be rebuilt, which it is not.
+	if unreadable && !gone {
+		plan.SecretsStored = types.BoolUnknown()
+		plan.TSIGSecret = types.StringUnknown()
+		plan.StateSecretKey = types.StringUnknown()
+		plan.APIToken = types.StringUnknown()
+		resp.Diagnostics.Append(resp.Plan.Set(ctx, plan)...)
+		return
+	}
+
+	plan.SecretsStored = types.BoolUnknown()
 	plan.Present = types.BoolUnknown()
 	plan.Status = types.StringUnknown()
 	plan.Index = types.Int64Unknown()
@@ -265,8 +300,12 @@ func (r *tenantResource) Delete(ctx context.Context, req resource.DeleteRequest,
 // are kept from prior state: a read never carries them.
 func tenantFrom(t client.Tenant, prior tenantModel) tenantModel {
 	m := tenantModel{
-		Name:            types.StringValue(t.Name),
-		Present:         types.BoolValue(true),
+		Name:    types.StringValue(t.Name),
+		Present: types.BoolValue(true),
+		// An API that does not report the field is older than it and has no way to
+		// say otherwise; assuming readable keeps it usable rather than replanning
+		// a resupply on every apply.
+		SecretsStored:   types.BoolValue(t.SecretsStored == nil || *t.SecretsStored),
 		Status:          types.StringValue(t.Status),
 		Index:           types.Int64Value(t.Index),
 		VRFVNI:          types.Int64Value(t.Network.VRFVNI),
