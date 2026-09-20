@@ -261,6 +261,83 @@ func (c *Client) DeleteDevice(ctx context.Context, tenant, name string) error {
 	return c.do(ctx, http.MethodDelete, "/v1/tenants/"+tenant+"/devices/"+name, nil, nil)
 }
 
+// BrokerAccount is a tenant's MQTT account on the platform broker
+// (ADR-0012 §3, §8, §10).
+type BrokerAccount struct {
+	Tenant string `json:"tenant"`
+	Name   string `json:"name"`
+	Device string `json:"device,omitempty"`
+	// Username is derived by the API: <tenant>-<name>. Reported so a tenant can
+	// configure a device without being able to choose it.
+	Username string `json:"username"`
+	// Publish and Subscribe come back ABSOLUTE - the API writes the tenant
+	// prefix itself (§10) - which is deliberately not what was sent.
+	Publish   []string `json:"publish"`
+	Subscribe []string `json:"subscribe"`
+	Status    string   `json:"status"`
+	// Password comes back on a create that minted or was given one, and never
+	// on a read. The API holds only a hash, so this state is the only copy.
+	Password string `json:"password,omitempty"`
+}
+
+type PutBrokerAccountRequest struct {
+	Name   string `json:"name"`
+	Device string `json:"device,omitempty"`
+	// Publish and Subscribe are RELATIVE to the tenant: "lightstand/+/scene",
+	// never "eds/lightstand/+/scene". The API writes the prefix.
+	Publish   []string `json:"publish,omitempty"`
+	Subscribe []string `json:"subscribe,omitempty"`
+	// Password is sent only to restore an account the tenant already holds, so
+	// the broker is made to match devices already flashed (ADR-0012 §5).
+	Password string `json:"password,omitempty"`
+}
+
+// PutBrokerAccount issues or re-applies an account.
+//
+// On a 502 the API has written its own record but the broker has not been
+// reached, and the answer carries the account INCLUDING its password. That is
+// returned alongside the error rather than discarded: the API cannot reproduce
+// the plaintext later, so losing it here would leave an account that nothing
+// can authenticate as and that only a delete could clear.
+func (c *Client) PutBrokerAccount(ctx context.Context, tenant string, req PutBrokerAccountRequest) (BrokerAccount, error) {
+	var out BrokerAccount
+	err := c.do(ctx, http.MethodPost, "/v1/tenants/"+tenant+"/broker-accounts", req, &out)
+	if err != nil {
+		if partial, ok := PartialBrokerAccount(err); ok {
+			return partial, err
+		}
+		return BrokerAccount{}, err
+	}
+	return out, nil
+}
+
+// PartialBrokerAccount digs a partially applied account out of a failed
+// create. The API sends {"error": ..., "broker_account": {...}} when its own
+// record was written and a later step was not.
+func PartialBrokerAccount(err error) (BrokerAccount, bool) {
+	var ae *APIError
+	if !errors.As(err, &ae) {
+		return BrokerAccount{}, false
+	}
+	var body struct {
+		Account BrokerAccount `json:"broker_account"`
+	}
+	if json.Unmarshal(ae.Body, &body) != nil || body.Account.Name == "" {
+		return BrokerAccount{}, false
+	}
+	return body.Account, true
+}
+
+func (c *Client) GetBrokerAccount(ctx context.Context, tenant, name string) (BrokerAccount, error) {
+	var out BrokerAccount
+	err := c.do(ctx, http.MethodGet, "/v1/tenants/"+tenant+"/broker-accounts/"+name, nil, &out)
+	return out, err
+}
+
+func (c *Client) DeleteBrokerAccount(ctx context.Context, tenant, name string) error {
+	return c.do(ctx, http.MethodDelete, "/v1/tenants/"+tenant+"/broker-accounts/"+name, nil, nil)
+}
+
 // Record is a name the tenant publishes beside its workloads'.
 type Record struct {
 	Name    string `json:"name"`
@@ -323,7 +400,7 @@ func (c *Client) do(ctx context.Context, method, path string, in, out any) error
 	case resp.StatusCode == http.StatusNotFound:
 		return ErrNotFound
 	case resp.StatusCode >= 300:
-		return fmt.Errorf("%s %s: %s", method, path, apiError(resp.StatusCode, raw))
+		return &APIError{Method: method, Path: path, Status: resp.StatusCode, Body: raw}
 	}
 	if out != nil && len(raw) > 0 {
 		if err := json.Unmarshal(raw, out); err != nil {
@@ -331,6 +408,23 @@ func (c *Client) do(ctx context.Context, method, path string, in, out any) error
 		}
 	}
 	return nil
+}
+
+// APIError is a non-2xx answer, keeping the raw body.
+//
+// The body is kept because some failures carry a partially applied object the
+// caller must not lose. A broker account's password is the case that forced
+// this: the API stores only a bcrypt hash, so the plaintext in a 502 body
+// exists nowhere else, and discarding it would leave an account nothing can
+// ever authenticate as (ADR-0012 §4).
+type APIError struct {
+	Method, Path string
+	Status       int
+	Body         []byte
+}
+
+func (e *APIError) Error() string {
+	return fmt.Sprintf("%s %s: %s", e.Method, e.Path, apiError(e.Status, e.Body))
 }
 
 // apiError uses the API's own message when it sent one. The API never puts a

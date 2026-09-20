@@ -31,4 +31,11 @@ make docs      # regenerate docs/ from the schemas
   or a backend address in one.
 - **Acceptance tests build real objects.** They need `TF_ACC=1` and are gated on
   `DEEVNET_TEST_TENANT`, which must never name a live tenant. `DEEVNET_TEST_WORKLOADS=1` builds a VM
-  on the tenant hypervisor.
+  on the tenant hypervisor; `DEEVNET_TEST_BROKER=1` writes accounts to the platform broker.
+- **Broker account patterns are relative in config and absolute in the API's answer.** State records
+  the relative form - stripping the prefix back off - so a plan stays empty AND a grant that drifted
+  on the broker shows as a diff. `granted_publish`/`granted_subscribe` carry the absolute form.
+- **A failed create can still carry a secret.** The API returns `502` with the account and its
+  password when its own record was written and the writer step was not, and the API keeps only a
+  hash. `client.APIError` therefore keeps the raw body, and the resource sets state from the partial
+  object before returning the error - the framework persists state set on a failed Create.

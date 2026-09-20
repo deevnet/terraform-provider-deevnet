@@ -114,3 +114,62 @@ resource "deevnet_workload" "web" {
 		},
 	})
 }
+
+// A broker account for a registered device, end to end against a real API and
+// a real broker. The second step is PlanOnly: the account's patterns are
+// written relative and answered absolute, so a plan that is not empty means
+// the provider is recording something the configuration cannot reproduce.
+func TestAccIoTBrokerAccount(t *testing.T) {
+	if os.Getenv("DEEVNET_TEST_BROKER") == "" {
+		t.Skip("DEEVNET_TEST_BROKER is not set; this writes an account to the platform broker")
+	}
+	name := testTenant()
+	config := fmt.Sprintf(`
+resource "deevnet_tenant" "this" {
+  name = %q
+}
+
+resource "deevnet_iot_device" "stand" {
+  tenant      = deevnet_tenant.this.name
+  name        = "stand-1"
+  trust_class = "iot"
+}
+
+resource "deevnet_iot_broker_account" "stand" {
+  tenant    = deevnet_tenant.this.name
+  name      = "stand-1"
+  device    = deevnet_iot_device.stand.name
+  publish   = ["lightstand/+/telemetry"]
+  subscribe = ["lightstand/+/command"]
+}
+
+# A workload account: no device, and one direction only.
+resource "deevnet_iot_broker_account" "collector" {
+  tenant    = deevnet_tenant.this.name
+  name      = "collector"
+  subscribe = ["#"]
+}
+`, name)
+
+	resource.Test(t, resource.TestCase{
+		PreCheck:                 func() { preCheck(t) },
+		ProtoV6ProviderFactories: factories,
+		Steps: []resource.TestStep{
+			{
+				Config: config,
+				Check: resource.ComposeAggregateTestCheckFunc(
+					resource.TestCheckResourceAttr("deevnet_iot_broker_account.stand", "status", "ready"),
+					resource.TestCheckResourceAttr("deevnet_iot_broker_account.stand", "username", name+"-stand-1"),
+					resource.TestCheckResourceAttrSet("deevnet_iot_broker_account.stand", "password"),
+					// Config is relative; what the broker enforces is not.
+					resource.TestCheckResourceAttr("deevnet_iot_broker_account.stand", "publish.0", "lightstand/+/telemetry"),
+					resource.TestCheckResourceAttr("deevnet_iot_broker_account.stand", "granted_publish.0", name+"/lightstand/+/telemetry"),
+					// A tenant taking its whole tree gets its own tree only.
+					resource.TestCheckResourceAttr("deevnet_iot_broker_account.collector", "granted_subscribe.0", name+"/#"),
+					resource.TestCheckResourceAttr("deevnet_iot_broker_account.collector", "granted_publish.#", "0"),
+				),
+			},
+			{Config: config, PlanOnly: true},
+		},
+	})
+}
