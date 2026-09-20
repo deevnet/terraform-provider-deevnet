@@ -226,6 +226,41 @@ func (c *Client) DeleteWiFiKey(ctx context.Context, tenant, name string) error {
 	return c.do(ctx, http.MethodDelete, "/v1/tenants/"+tenant+"/wifi-keys/"+name, nil, nil)
 }
 
+// Device is one of a tenant's edge devices in the registry (ADR-0012 §3).
+// The entry is the device's identity; it carries no credential and grants
+// nothing (ADR-0020 §2).
+type Device struct {
+	Tenant     string `json:"tenant"`
+	Name       string `json:"name"`
+	TrustClass string `json:"trust_class"`
+	// MAC is a label for the owner's own inventory. The substrate enforces
+	// nothing with it.
+	MAC    string `json:"mac,omitempty"`
+	Status string `json:"status"`
+}
+
+type PutDeviceRequest struct {
+	Name       string `json:"name"`
+	TrustClass string `json:"trust_class"`
+	MAC        string `json:"mac,omitempty"`
+}
+
+func (c *Client) PutDevice(ctx context.Context, tenant string, req PutDeviceRequest) (Device, error) {
+	var out Device
+	err := c.do(ctx, http.MethodPost, "/v1/tenants/"+tenant+"/devices", req, &out)
+	return out, err
+}
+
+func (c *Client) GetDevice(ctx context.Context, tenant, name string) (Device, error) {
+	var out Device
+	err := c.do(ctx, http.MethodGet, "/v1/tenants/"+tenant+"/devices/"+name, nil, &out)
+	return out, err
+}
+
+func (c *Client) DeleteDevice(ctx context.Context, tenant, name string) error {
+	return c.do(ctx, http.MethodDelete, "/v1/tenants/"+tenant+"/devices/"+name, nil, nil)
+}
+
 // Record is a name the tenant publishes beside its workloads'.
 type Record struct {
 	Name    string `json:"name"`

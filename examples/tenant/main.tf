@@ -43,6 +43,30 @@ resource "deevnet_dns_record" "service" {
   address = deevnet_workload.app.address
 }
 
+# The tenant's IoT devices, and the key they are flashed with.
+#
+# These two do not reference each other, and that is the design. The key is per
+# TENANT per trust class: one key serves every device the tenant flashes with
+# it, so revoking it stops all of them. The device entries are the tenant's own
+# inventory of what it has flashed.
+#
+# Registering a device grants it nothing. It is identity, not authorization.
+resource "deevnet_iot_wifi_key" "devices" {
+  tenant      = deevnet_tenant.this.name
+  name        = "devices"
+  trust_class = "iot"
+}
+
+resource "deevnet_iot_device" "stand" {
+  tenant      = deevnet_tenant.this.name
+  name        = "stand-1"
+  trust_class = "iot"
+
+  # Optional, and recorded rather than enforced: the substrate never treats a
+  # MAC as authorization, because it is trivially spoofed on a shared segment.
+  mac = "aa:bb:cc:dd:ee:ff"
+}
+
 variable "ssh_keys" {
   type        = list(string)
   description = "Public keys for the workloads' cloud-init account."
@@ -67,6 +91,15 @@ output "state_credentials" {
     key_prefix = deevnet_tenant.this.state_key_prefix
     access_key = deevnet_tenant.this.state_access_key
     secret_key = deevnet_tenant.this.state_secret_key
+  }
+  sensitive = true
+}
+
+# Flash devices with these two. The psk is the tenant's authoritative copy.
+output "device_wifi" {
+  value = {
+    ssid = deevnet_iot_wifi_key.devices.ssid
+    psk  = deevnet_iot_wifi_key.devices.psk
   }
   sensitive = true
 }
