@@ -95,6 +95,7 @@ func (p *deevnetProvider) Resources(_ context.Context) []func() resource.Resourc
 		NewRecordResource,
 		NewIoTWiFiKeyResource,
 		NewIoTDeviceResource,
+		NewIoTBrokerAccountResource,
 	}
 }
 

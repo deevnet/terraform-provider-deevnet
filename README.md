@@ -43,12 +43,39 @@ resource "deevnet_iot_wifi_key" "devices" {
   trust_class = "iot"
 }
 
+resource "deevnet_iot_device" "stand" {
+  tenant      = deevnet_tenant.this.name
+  name        = "stand-1"
+  trust_class = "iot"
+}
+
+resource "deevnet_iot_broker_account" "stand" {
+  tenant = deevnet_tenant.this.name
+  name   = "stand-1"
+  device = deevnet_iot_device.stand.name
+
+  # Relative to the tenant. The API writes the "tdemo/" prefix itself, which is
+  # what confines a tenant to its own topics.
+  publish   = ["lightstand/+/telemetry"]
+  subscribe = ["lightstand/+/command"]
+}
+
 output "wifi" {
   # Flash devices with these. Never hardcode the SSID: the same trust class is
   # a different SSID at another site.
   value     = {
     ssid = deevnet_iot_wifi_key.devices.ssid
     psk  = deevnet_iot_wifi_key.devices.psk
+  }
+  sensitive = true
+}
+
+output "broker" {
+  value = {
+    username = deevnet_iot_broker_account.stand.username
+    password = deevnet_iot_broker_account.stand.password
+    # What the broker actually enforces, prefix and all.
+    publish = deevnet_iot_broker_account.stand.granted_publish
   }
   sensitive = true
 }
@@ -72,6 +99,8 @@ is their authoritative copy (ADR-0015 §4). Keep that state where ADR-0007 says.
 | `deevnet_workload` | a VM in the tenant's network; the API derives its VMID, MAC and address |
 | `deevnet_dns_record` | a name in the tenant's zone, with its PTR |
 | `deevnet_iot_wifi_key` | a Wi-Fi key for the tenant's IoT devices, bound to its trust class's VLAN |
+| `deevnet_iot_device` | an entry in the tenant's device registry: an identity, carrying no credential |
+| `deevnet_iot_broker_account` | an MQTT account on the platform broker, for a device or a workload |
 
 ## Restore instead of recreate
 
@@ -92,6 +121,18 @@ but can no longer read.
 The flip side is worth saying plainly: **`terraform apply -replace`, or removing and re-adding the
 block, issues a NEW key, and every device flashed with the old one stops associating until it is
 reflashed.** There is no guard against that, because revoking is sometimes exactly what you mean.
+
+**A broker account is sharper still.** The API keeps only a bcrypt hash of the password, so unlike a
+Wi-Fi key it cannot resupply one from its own records — this state is the only copy that exists.
+Two things follow. A restore sends the password back from state, so the broker is made to match the
+clients. And when a create fails at the last step, the provider keeps the account it was handed,
+password included, rather than letting the apply error discard it; the account's `status` is not
+`ready`, so the next plan retries it.
+
+Topic patterns are written **relative to the tenant** — `lightstand/+/scene`, never
+`eds/lightstand/+/scene` — and the API writes the prefix. `granted_publish` and `granted_subscribe`
+report the absolute form the broker enforces. State records the relative form, so a grant that
+changed on the broker shows up as a diff against the configuration and the next apply corrects it.
 
 ## Development
 
