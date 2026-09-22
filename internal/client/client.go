@@ -114,6 +114,15 @@ type Tenant struct {
 		AccessKey string `json:"access_key"`
 		SecretKey string `json:"secret_key,omitempty"`
 	} `json:"state"`
+	// Log is the tenant's access to the log store (ADR-0027). The tokens
+	// appear on create and on reconcile; the rest on every read.
+	Log struct {
+		Endpoint     string `json:"endpoint,omitempty"`
+		AccountID    int64  `json:"account_id"`
+		SelectHeader string `json:"select_header,omitempty"`
+		IngestToken  string `json:"ingest_token,omitempty"`
+		ReadToken    string `json:"read_token,omitempty"`
+	} `json:"log"`
 	APIToken string `json:"api_token,omitempty"`
 	// SecretsStored is false when the API holds secrets for this tenant that it
 	// can no longer read, which is what a rebuilt or rotated Transit key leaves
