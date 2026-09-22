@@ -57,6 +57,12 @@ type tenantModel struct {
 	StateAccessKey types.String `tfsdk:"state_access_key"`
 	StateSecretKey types.String `tfsdk:"state_secret_key"`
 
+	LogEndpoint     types.String `tfsdk:"log_endpoint"`
+	LogAccountID    types.Int64  `tfsdk:"log_account_id"`
+	LogSelectHeader types.String `tfsdk:"log_select_header"`
+	LogIngestToken  types.String `tfsdk:"log_ingest_token"`
+	LogReadToken    types.String `tfsdk:"log_read_token"`
+
 	APIToken types.String `tfsdk:"api_token"`
 }
 
@@ -132,6 +138,25 @@ func (r *tenantResource) Schema(_ context.Context, _ resource.SchemaRequest, res
 				MarkdownDescription: "State store secret key.",
 				PlanModifiers:       []planmodifier.String{stringplanmodifier.UseStateForUnknown()},
 			},
+			"log_endpoint":   computedString("The log store this tenant ships to, empty at a site with none (ADR-0027)."),
+			"log_account_id": computedInt("The tenant's partition family: project 0 is what its workloads ship, 1 what the substrate publishes about it, 2 its devices' logs from MQTT."),
+			"log_select_header": computedString(
+				"The header a reader sends to choose a partition, for example `X-Deevnet-Partition: 2-1`. " +
+					"Without it a read returns project 0. It selects only among this tenant's partitions: the proxy " +
+					"sets the store's own headers itself."),
+			"log_ingest_token": schema.StringAttribute{
+				Computed:  true,
+				Sensitive: true,
+				MarkdownDescription: "Writes this tenant's own log partition. Issued by the API, which keeps it sealed - " +
+					"unlike the API token, so a reconcile can hand it back.",
+				PlanModifiers: []planmodifier.String{stringplanmodifier.UseStateForUnknown()},
+			},
+			"log_read_token": schema.StringAttribute{
+				Computed:            true,
+				Sensitive:           true,
+				MarkdownDescription: "Reads this tenant's three log partitions, and no other tenant's.",
+				PlanModifiers:       []planmodifier.String{stringplanmodifier.UseStateForUnknown()},
+			},
 			"api_token": schema.StringAttribute{
 				Computed:            true,
 				Sensitive:           true,
@@ -191,6 +216,9 @@ func (r *tenantResource) ModifyPlan(ctx context.Context, req resource.ModifyPlan
 		plan.TSIGSecret = types.StringUnknown()
 		plan.StateSecretKey = types.StringUnknown()
 		plan.APIToken = types.StringUnknown()
+		// The log tokens are left as they are. They are not part of the
+		// resupply: the API re-mints and re-writes them itself, because the
+		// store is told what a token is rather than holding the only copy.
 		resp.Diagnostics.Append(resp.Plan.Set(ctx, plan)...)
 		return
 	}
@@ -216,6 +244,16 @@ func (r *tenantResource) ModifyPlan(ctx context.Context, req resource.ModifyPlan
 	plan.StateKeyPrefix = types.StringUnknown()
 	plan.StateAccessKey = types.StringUnknown()
 	plan.StateSecretKey = types.StringUnknown()
+	plan.LogEndpoint = types.StringUnknown()
+	plan.LogAccountID = types.Int64Unknown()
+	plan.LogSelectHeader = types.StringUnknown()
+	// The log tokens too: a tenant the API no longer holds is re-created, and
+	// what it is given then is a fresh pair. That is unlike the broker
+	// account's password, which this provider deliberately keeps, because the
+	// API adopts the password state sends back and there is no equivalent here:
+	// a log token is only ever issued by the API.
+	plan.LogIngestToken = types.StringUnknown()
+	plan.LogReadToken = types.StringUnknown()
 	plan.APIToken = types.StringUnknown()
 	resp.Diagnostics.Append(resp.Plan.Set(ctx, plan)...)
 }
@@ -323,6 +361,11 @@ func tenantFrom(t client.Tenant, prior tenantModel) tenantModel {
 		StateBucket:     types.StringValue(t.State.Bucket),
 		StateKeyPrefix:  types.StringValue(t.State.KeyPrefix),
 		StateAccessKey:  types.StringValue(t.State.AccessKey),
+		LogEndpoint:     types.StringValue(t.Log.Endpoint),
+		LogAccountID:    types.Int64Value(t.Log.AccountID),
+		LogSelectHeader: types.StringValue(t.Log.SelectHeader),
+		LogIngestToken:  keep(t.Log.IngestToken, prior.LogIngestToken),
+		LogReadToken:    keep(t.Log.ReadToken, prior.LogReadToken),
 		TSIGSecret:      keep(t.DNS.TSIGSecret, prior.TSIGSecret),
 		StateSecretKey:  keep(t.State.SecretKey, prior.StateSecretKey),
 		APIToken:        keep(t.APIToken, prior.APIToken),
