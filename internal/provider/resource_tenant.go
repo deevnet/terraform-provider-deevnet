@@ -57,11 +57,15 @@ type tenantModel struct {
 	StateAccessKey types.String `tfsdk:"state_access_key"`
 	StateSecretKey types.String `tfsdk:"state_secret_key"`
 
-	LogEndpoint     types.String `tfsdk:"log_endpoint"`
-	LogAccountID    types.Int64  `tfsdk:"log_account_id"`
-	LogSelectHeader types.String `tfsdk:"log_select_header"`
-	LogIngestToken  types.String `tfsdk:"log_ingest_token"`
-	LogReadToken    types.String `tfsdk:"log_read_token"`
+	LogEndpoint       types.String `tfsdk:"log_endpoint"`
+	LogAccountID      types.Int64  `tfsdk:"log_account_id"`
+	LogSelectHeader   types.String `tfsdk:"log_select_header"`
+	LogIngestToken    types.String `tfsdk:"log_ingest_token"`
+	LogReadToken      types.String `tfsdk:"log_read_token"`
+	DashboardURL      types.String `tfsdk:"dashboard_url"`
+	DashboardOrgID    types.Int64  `tfsdk:"dashboard_org_id"`
+	DashboardUsername types.String `tfsdk:"dashboard_username"`
+	DashboardPassword types.String `tfsdk:"dashboard_password"`
 
 	APIToken types.String `tfsdk:"api_token"`
 }
@@ -156,6 +160,21 @@ func (r *tenantResource) Schema(_ context.Context, _ resource.SchemaRequest, res
 				Sensitive:           true,
 				MarkdownDescription: "Reads this tenant's three log partitions, and no other tenant's.",
 				PlanModifiers:       []planmodifier.String{stringplanmodifier.UseStateForUnknown()},
+			},
+			"dashboard_url": computedString("The tenant's Grafana, empty at a site with none (ADR-0024). Feed it to the " +
+				"`grafana` provider as `GRAFANA_URL`."),
+			"dashboard_org_id": computedInt("The tenant's own Grafana organisation. The `grafana` provider ignores its " +
+				"provider-level `org_id` under basic auth, so set this as `org_id` on each `grafana_folder` and " +
+				"`grafana_dashboard`."),
+			"dashboard_username": computedString("The tenant's Grafana login: an Editor in its own organisation and a member of no other."),
+			"dashboard_password": schema.StringAttribute{
+				Computed:  true,
+				Sensitive: true,
+				MarkdownDescription: "The Grafana login's password. Issued by the API, which keeps it sealed, so a " +
+					"reconcile can hand it back. The organisation's three log data sources have fixed UIDs - " +
+					"`deevnet-logs-workloads`, `deevnet-logs-platform`, `deevnet-logs-devices` - the same on every " +
+					"site and on the take-home Pi.",
+				PlanModifiers: []planmodifier.String{stringplanmodifier.UseStateForUnknown()},
 			},
 			"api_token": schema.StringAttribute{
 				Computed:            true,
@@ -254,6 +273,12 @@ func (r *tenantResource) ModifyPlan(ctx context.Context, req resource.ModifyPlan
 	// a log token is only ever issued by the API.
 	plan.LogIngestToken = types.StringUnknown()
 	plan.LogReadToken = types.StringUnknown()
+	// The same for the dashboard login: a re-created tenant gets a new
+	// organisation and a new password.
+	plan.DashboardURL = types.StringUnknown()
+	plan.DashboardOrgID = types.Int64Unknown()
+	plan.DashboardUsername = types.StringUnknown()
+	plan.DashboardPassword = types.StringUnknown()
 	plan.APIToken = types.StringUnknown()
 	resp.Diagnostics.Append(resp.Plan.Set(ctx, plan)...)
 }
@@ -343,32 +368,36 @@ func tenantFrom(t client.Tenant, prior tenantModel) tenantModel {
 		// An API that does not report the field is older than it and has no way to
 		// say otherwise; assuming readable keeps it usable rather than replanning
 		// a resupply on every apply.
-		SecretsStored:   types.BoolValue(t.SecretsStored == nil || *t.SecretsStored),
-		Status:          types.StringValue(t.Status),
-		Index:           types.Int64Value(t.Index),
-		VRFVNI:          types.Int64Value(t.Network.VRFVNI),
-		VNetVNIBase:     types.Int64Value(t.Network.VNetVNIBase),
-		Subnet:          types.StringValue(t.Network.Subnet),
-		Gateway:         types.StringValue(t.Network.Gateway),
-		ControllerID:    types.StringValue(t.Fabric.ControllerID),
-		Node:            types.StringValue(t.Fabric.Node),
-		DNSZone:         types.StringValue(t.DNS.Zone),
-		DNSReverseZone:  types.StringValue(t.DNS.ReverseZone),
-		DNSUpdateServer: types.StringValue(t.DNS.UpdateServer),
-		TSIGKeyName:     types.StringValue(t.DNS.TSIGKeyName),
-		TSIGAlgorithm:   types.StringValue(t.DNS.TSIGAlgorithm),
-		StateEndpoint:   types.StringValue(t.State.Endpoint),
-		StateBucket:     types.StringValue(t.State.Bucket),
-		StateKeyPrefix:  types.StringValue(t.State.KeyPrefix),
-		StateAccessKey:  types.StringValue(t.State.AccessKey),
-		LogEndpoint:     types.StringValue(t.Log.Endpoint),
-		LogAccountID:    types.Int64Value(t.Log.AccountID),
-		LogSelectHeader: types.StringValue(t.Log.SelectHeader),
-		LogIngestToken:  keep(t.Log.IngestToken, prior.LogIngestToken),
-		LogReadToken:    keep(t.Log.ReadToken, prior.LogReadToken),
-		TSIGSecret:      keep(t.DNS.TSIGSecret, prior.TSIGSecret),
-		StateSecretKey:  keep(t.State.SecretKey, prior.StateSecretKey),
-		APIToken:        keep(t.APIToken, prior.APIToken),
+		SecretsStored:     types.BoolValue(t.SecretsStored == nil || *t.SecretsStored),
+		Status:            types.StringValue(t.Status),
+		Index:             types.Int64Value(t.Index),
+		VRFVNI:            types.Int64Value(t.Network.VRFVNI),
+		VNetVNIBase:       types.Int64Value(t.Network.VNetVNIBase),
+		Subnet:            types.StringValue(t.Network.Subnet),
+		Gateway:           types.StringValue(t.Network.Gateway),
+		ControllerID:      types.StringValue(t.Fabric.ControllerID),
+		Node:              types.StringValue(t.Fabric.Node),
+		DNSZone:           types.StringValue(t.DNS.Zone),
+		DNSReverseZone:    types.StringValue(t.DNS.ReverseZone),
+		DNSUpdateServer:   types.StringValue(t.DNS.UpdateServer),
+		TSIGKeyName:       types.StringValue(t.DNS.TSIGKeyName),
+		TSIGAlgorithm:     types.StringValue(t.DNS.TSIGAlgorithm),
+		StateEndpoint:     types.StringValue(t.State.Endpoint),
+		StateBucket:       types.StringValue(t.State.Bucket),
+		StateKeyPrefix:    types.StringValue(t.State.KeyPrefix),
+		StateAccessKey:    types.StringValue(t.State.AccessKey),
+		LogEndpoint:       types.StringValue(t.Log.Endpoint),
+		LogAccountID:      types.Int64Value(t.Log.AccountID),
+		LogSelectHeader:   types.StringValue(t.Log.SelectHeader),
+		LogIngestToken:    keep(t.Log.IngestToken, prior.LogIngestToken),
+		LogReadToken:      keep(t.Log.ReadToken, prior.LogReadToken),
+		DashboardURL:      types.StringValue(t.Dashboard.URL),
+		DashboardOrgID:    types.Int64Value(t.Dashboard.OrgID),
+		DashboardUsername: types.StringValue(t.Dashboard.Username),
+		DashboardPassword: keep(t.Dashboard.Password, prior.DashboardPassword),
+		TSIGSecret:        keep(t.DNS.TSIGSecret, prior.TSIGSecret),
+		StateSecretKey:    keep(t.State.SecretKey, prior.StateSecretKey),
+		APIToken:          keep(t.APIToken, prior.APIToken),
 	}
 	return m
 }
