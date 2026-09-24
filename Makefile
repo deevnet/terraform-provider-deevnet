@@ -8,7 +8,17 @@ MIRROR_OS      := $(shell go env GOOS)
 MIRROR_ARCH    := $(shell go env GOARCH)
 MIRROR_DIR     := $(HOME)/.terraform.d/plugins/registry.terraform.io/deevnet/deevnet/$(MIRROR_VERSION)/$(MIRROR_OS)_$(MIRROR_ARCH)
 
-.PHONY: default help build test testacc vet fmt docs clean mirror
+# Prebuilt releases (CHG-0025): the platforms a tenant's laptop runs, zipped
+# the way a registry would serve them, with SHA256SUMS. `release` publishes
+# them on GitHub (the off-site route); `stage` puts them in the Builder's
+# tenant downloads tree, which the observability store serves to DVNTM-TD.
+PLATFORMS      := darwin_arm64 darwin_amd64 linux_amd64 linux_arm64
+DIST           := dist
+GRAFANA_VERSION := 4.46.0
+ARTIFACTS_ROOT ?= /srv/deevnet-http
+STAGE_DIR      := $(ARTIFACTS_ROOT)/tenant
+
+.PHONY: default help build test testacc vet fmt docs clean mirror release-build release stage
 
 default: help
 
@@ -21,6 +31,9 @@ help:
 	@echo "  fmt      gofmt -w ."
 	@echo "  docs     regenerate docs/ from the schemas"
 	@echo "  mirror   install into the local filesystem mirror terraform reads"
+	@echo "  release-build  zips for $(PLATFORMS), SHA256SUMS and the two scripts, in $(DIST)/"
+	@echo "  release  release-build, then a GitHub release with them attached"
+	@echo "  stage    release-build, then install them under $(STAGE_DIR) (sudo)"
 	@echo ""
 	@echo "VERSION=$(VERSION)"
 
@@ -44,6 +57,39 @@ mirror: build
 	install -m 0755 $(BINARY) $(MIRROR_DIR)/$(BINARY)
 	@echo "mirrored $(MIRROR_DIR)/$(BINARY)"
 
+# Refuses what mirror refuses: a release is a version a constraint can match.
+release-build:
+	@case "$(MIRROR_VERSION)" in \
+	  *-dirty|*-g*|dev) \
+	    echo "refusing to release VERSION=$(VERSION); commit and tag first" >&2; exit 1;; \
+	esac
+	rm -rf $(DIST) && mkdir -p $(DIST)/scripts
+	@for p in $(PLATFORMS); do \
+	  os=$${p%_*}; arch=$${p#*_}; bin=$(DIST)/$$p/$(BINARY)_v$(MIRROR_VERSION); \
+	  mkdir -p $(DIST)/$$p; \
+	  CGO_ENABLED=0 GOOS=$$os GOARCH=$$arch go build -trimpath -ldflags "-s -w -X main.version=$(VERSION)" -o $$bin . || exit 1; \
+	  (cd $(DIST)/$$p && zip -q ../$(BINARY)_$(MIRROR_VERSION)_$$p.zip $(BINARY)_v$(MIRROR_VERSION)) || exit 1; \
+	  rm -rf $(DIST)/$$p; \
+	done
+	cd $(DIST) && sha256sum *.zip > SHA256SUMS
+	@for f in install-provider.sh tenant-check.sh; do \
+	  sed -e 's/@VERSION@/$(MIRROR_VERSION)/g' -e 's/@GRAFANA@/$(GRAFANA_VERSION)/g' scripts/$$f > $(DIST)/scripts/$$f; \
+	  chmod 0755 $(DIST)/scripts/$$f; \
+	done
+	@ls -1 $(DIST) $(DIST)/scripts
+
+release: release-build
+	gh release create v$(MIRROR_VERSION) $(DIST)/*.zip $(DIST)/SHA256SUMS $(DIST)/scripts/*.sh \
+	  --title "v$(MIRROR_VERSION)" --notes "Prebuilt for $(PLATFORMS). Install: bash install-provider.sh --github"
+
+# The Builder's tenant downloads tree. install-provider.sh reads
+# provider/<version>/ and scripts/ from it.
+stage: release-build
+	sudo install -d -o nginx -g nginx -m 0755 $(STAGE_DIR)/provider/$(MIRROR_VERSION) $(STAGE_DIR)/scripts
+	sudo install -o nginx -g nginx -m 0644 $(DIST)/*.zip $(DIST)/SHA256SUMS $(STAGE_DIR)/provider/$(MIRROR_VERSION)/
+	sudo install -o nginx -g nginx -m 0755 $(DIST)/scripts/*.sh $(STAGE_DIR)/scripts/
+	@echo "staged $(STAGE_DIR)/provider/$(MIRROR_VERSION) and $(STAGE_DIR)/scripts"
+
 test:
 	go test ./...
 
@@ -63,4 +109,4 @@ docs:
 	go run github.com/hashicorp/terraform-plugin-docs/cmd/tfplugindocs@latest generate --provider-name deevnet
 
 clean:
-	rm -f $(BINARY)
+	rm -rf $(BINARY) $(DIST)
