@@ -58,3 +58,25 @@ func TestTenantFromLeavesTheTokensNullAtASiteWithNoStore(t *testing.T) {
 		t.Errorf("endpoint = %q, want empty", m.LogEndpoint.ValueString())
 	}
 }
+
+// The dashboard login arrives like the log tokens: the password on create and
+// reconcile, kept from state on every other read, and the rest always.
+func TestTenantFromTakesTheDashboardLoginAndKeepsItsPassword(t *testing.T) {
+	fresh := tenantWithLog("i", "r")
+	fresh.Dashboard.URL = "https://obs.example:3000"
+	fresh.Dashboard.OrgID = 4
+	fresh.Dashboard.Username = "eds"
+	fresh.Dashboard.Password = "dash-pw"
+	m := tenantFrom(fresh, tenantModel{})
+	if m.DashboardPassword.ValueString() != "dash-pw" || m.DashboardOrgID.ValueInt64() != 4 ||
+		m.DashboardUsername.ValueString() != "eds" || m.DashboardURL.ValueString() != "https://obs.example:3000" {
+		t.Fatalf("dashboard = %v %v %v %v", m.DashboardURL, m.DashboardOrgID, m.DashboardUsername, m.DashboardPassword)
+	}
+
+	read := fresh
+	read.Dashboard.Password = ""
+	m = tenantFrom(read, m)
+	if m.DashboardPassword.ValueString() != "dash-pw" {
+		t.Fatalf("a plain read lost the password: %v", m.DashboardPassword)
+	}
+}

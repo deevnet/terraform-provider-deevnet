@@ -123,6 +123,15 @@ type Tenant struct {
 		IngestToken  string `json:"ingest_token,omitempty"`
 		ReadToken    string `json:"read_token,omitempty"`
 	} `json:"log"`
+	// Dashboard is the tenant's Grafana login (ADR-0024, CHG-0024): its own
+	// organisation, where it is an Editor. The password appears on create and
+	// on reconcile; the rest on every read, once the organisation exists.
+	Dashboard struct {
+		URL      string `json:"url,omitempty"`
+		OrgID    int64  `json:"org_id,omitempty"`
+		Username string `json:"username,omitempty"`
+		Password string `json:"password,omitempty"`
+	} `json:"dashboard"`
 	APIToken string `json:"api_token,omitempty"`
 	// SecretsStored is false when the API holds secrets for this tenant that it
 	// can no longer read, which is what a rebuilt or rotated Transit key leaves
