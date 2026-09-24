@@ -9,7 +9,7 @@ terraform {
   required_providers {
     deevnet = {
       source  = "deevnet/deevnet"
-      version = "~> 0.1"
+      version = "~> 0.4"
     }
   }
 }
@@ -80,6 +80,38 @@ output "broker" {
   sensitive = true
 }
 ```
+
+## Install
+
+The provider is not in the public registry. It goes into Terraform's implicit local mirror
+(`~/.terraform.d/plugins/registry.terraform.io/deevnet/deevnet/<version>/<os>_<arch>/`), and
+`terraform init` finds it there. Three ways in, fastest first:
+
+```bash
+# At a Deevnet site, on DVNTM-TD: from the site's tenant downloads (also installs the
+# grafana provider for dashboards as code). Check the CA's fingerprint against the tenant
+# guide before trusting anything it signs.
+curl -fsSLk -o site-ca.pem https://downloads.mobile.deevnet.net:8443/site-ca.pem
+openssl x509 -in site-ca.pem -noout -fingerprint -sha256
+curl -fsSL --cacert site-ca.pem -O https://downloads.mobile.deevnet.net:8443/scripts/install-provider.sh
+bash install-provider.sh
+
+# Anywhere: prebuilt from this repository's GitHub releases
+bash install-provider.sh --github
+
+# From source (needs Go and make): builds for this machine only
+git checkout vX.Y.Z && make mirror
+```
+
+The script verifies every zip against `SHA256SUMS`, and the site's download server against
+the site CA it carries. The only unverified fetch is the CA itself, and its fingerprint is what
+you check. `tenant-check.sh` beside it says what
+else a tenant laptop still needs, with the install command for macOS (brew), Fedora (dnf) or
+Debian/Ubuntu (apt).
+
+Maintainers: `make release` builds `darwin`/`linux` × `amd64`/`arm64` zips with `SHA256SUMS`
+and publishes them as a GitHub release; `make stage` installs the same files into the Builder's
+tenant downloads tree.
 
 ## What a tenant holds
 
