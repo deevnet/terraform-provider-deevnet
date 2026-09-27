@@ -215,6 +215,7 @@ type WiFiKey struct {
 	// SSID and VLAN are reported by the API, never chosen by the tenant.
 	SSID   string `json:"ssid"`
 	VLAN   int64  `json:"vlan"`
+	MAC    string `json:"mac,omitempty"`
 	Status string `json:"status"`
 	// PSK comes back on a create only. A read answers SecretsStored instead.
 	PSK           string `json:"psk,omitempty"`
@@ -227,6 +228,8 @@ type PutWiFiKeyRequest struct {
 	// PSK is sent only to restore a key the tenant already holds, so the
 	// controller is made to match devices already flashed (ADR-0012 §5).
 	PSK string `json:"psk,omitempty"`
+	// MAC binds the key to one client (ADR-0029). Empty unbinds.
+	MAC string `json:"mac,omitempty"`
 }
 
 func (c *Client) PutWiFiKey(ctx context.Context, tenant string, req PutWiFiKeyRequest) (WiFiKey, error) {

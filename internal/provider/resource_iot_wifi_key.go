@@ -27,6 +27,7 @@ type iotWiFiKeyModel struct {
 	TrustClass    types.String `tfsdk:"trust_class"`
 	SSID          types.String `tfsdk:"ssid"`
 	VLAN          types.Int64  `tfsdk:"vlan"`
+	MAC           types.String `tfsdk:"mac"`
 	PSK           types.String `tfsdk:"psk"`
 	Status        types.String `tfsdk:"status"`
 	SecretsStored types.Bool   `tfsdk:"secrets_stored"`
@@ -58,10 +59,18 @@ func (r *iotWiFiKeyResource) Schema(_ context.Context, _ resource.SchemaRequest,
 			"trust_class": schema.StringAttribute{
 				Required: true,
 				MarkdownDescription: "`iot` for devices whose firmware the tenant controls, " +
-					"`iot_vendor` for devices whose vendor does. The VLAN follows from this and " +
+					"`iot_vendor` for devices whose vendor does, `tenant_dev` for a developer's " +
+					"laptop on the tenant developer network. The VLAN follows from this and " +
 					"cannot be chosen. Changing it replaces the key, because every device holding " +
 					"the old one would otherwise move VLAN silently.",
 				PlanModifiers: []planmodifier.String{stringplanmodifier.RequiresReplace()},
+			},
+			"mac": schema.StringAttribute{
+				Optional: true,
+				MarkdownDescription: "Binds the key to one client: the wireless controller then " +
+					"admits it from this MAC only. Suits a `tenant_dev` key, one per laptop; turn off " +
+					"the laptop's private/random Wi-Fi address for this network first. Changing it " +
+					"rebinds the key without reissuing it; removing it unbinds.",
 			},
 			"ssid": computedString("The SSID to flash devices with. Do not hardcode it: the same " +
 				"trust class is a different SSID at another site."),
@@ -188,6 +197,7 @@ func (r *iotWiFiKeyResource) put(ctx context.Context, m iotWiFiKeyModel, state s
 	req := client.PutWiFiKeyRequest{
 		Name:       m.Name.ValueString(),
 		TrustClass: m.TrustClass.ValueString(),
+		MAC:        m.MAC.ValueString(),
 	}
 	// Send the key we already hold, so the API adopts it rather than minting a
 	// new one. Empty on a first apply, which is when the API generates it.
@@ -210,12 +220,20 @@ func wifiKeyFrom(k client.WiFiKey, prior iotWiFiKeyModel) iotWiFiKeyModel {
 	if k.PSK != "" {
 		psk = types.StringValue(k.PSK)
 	}
+	// The MAC is kept as written: the API normalizes the spelling, and state
+	// must match the configuration. Only an import, with nothing written,
+	// takes the API's.
+	mac := prior.MAC
+	if (mac.IsNull() || mac.IsUnknown()) && k.MAC != "" {
+		mac = types.StringValue(k.MAC)
+	}
 	return iotWiFiKeyModel{
 		Tenant:        types.StringValue(k.Tenant),
 		Name:          types.StringValue(k.Name),
 		TrustClass:    types.StringValue(k.TrustClass),
 		SSID:          types.StringValue(k.SSID),
 		VLAN:          types.Int64Value(k.VLAN),
+		MAC:           mac,
 		PSK:           psk,
 		Status:        types.StringValue(k.Status),
 		SecretsStored: types.BoolValue(k.SecretsStored),

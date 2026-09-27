@@ -55,3 +55,25 @@ func TestSecretsStoredFalseIsCarried(t *testing.T) {
 		t.Error("the key must survive so the next apply can resupply it")
 	}
 }
+
+// State keeps the MAC as the tenant wrote it: the API answers with its own
+// spelling, and a state that differed from the configuration would fail the
+// apply as an inconsistent result.
+func TestWiFiKeyKeepsTheMACAsWritten(t *testing.T) {
+	prior := iotWiFiKeyModel{PSK: types.StringValue("held"), MAC: types.StringValue("AA-BB-CC-00-11-22")}
+	got := wifiKeyFrom(client.WiFiKey{Tenant: "eds", Name: "laptop", MAC: "aa:bb:cc:00:11:22"}, prior)
+	if got.MAC.ValueString() != "AA-BB-CC-00-11-22" {
+		t.Errorf("mac = %s", got.MAC)
+	}
+	// An import has nothing written, so it takes the API's.
+	got = wifiKeyFrom(client.WiFiKey{Tenant: "eds", Name: "laptop", MAC: "aa:bb:cc:00:11:22"},
+		iotWiFiKeyModel{MAC: types.StringNull()})
+	if got.MAC.ValueString() != "aa:bb:cc:00:11:22" {
+		t.Errorf("imported mac = %s", got.MAC)
+	}
+	// No binding stays null, not "".
+	got = wifiKeyFrom(client.WiFiKey{Tenant: "eds", Name: "devices"}, iotWiFiKeyModel{MAC: types.StringNull()})
+	if !got.MAC.IsNull() {
+		t.Errorf("unbound mac = %s, want null", got.MAC)
+	}
+}
