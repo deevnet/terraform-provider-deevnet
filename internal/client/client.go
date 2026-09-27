@@ -169,17 +169,18 @@ func (c *Client) DeleteTenant(ctx context.Context, name string) error {
 
 // Workload is a tenant VM.
 type Workload struct {
-	Tenant   string `json:"tenant"`
-	Name     string `json:"name"`
-	FQDN     string `json:"fqdn"`
-	Status   string `json:"status"`
-	Ordinal  int64  `json:"ordinal"`
-	VMID     int64  `json:"vmid"`
-	MAC      string `json:"mac"`
-	Address  string `json:"address"`
-	Cores    int64  `json:"cores"`
-	MemoryMB int64  `json:"memory_mb"`
-	DiskGB   int64  `json:"disk_gb,omitempty"`
+	Tenant    string `json:"tenant"`
+	Name      string `json:"name"`
+	FQDN      string `json:"fqdn"`
+	LoginUser string `json:"login_user,omitempty"`
+	Status    string `json:"status"`
+	Ordinal   int64  `json:"ordinal"`
+	VMID      int64  `json:"vmid"`
+	MAC       string `json:"mac"`
+	Address   string `json:"address"`
+	Cores     int64  `json:"cores"`
+	MemoryMB  int64  `json:"memory_mb"`
+	DiskGB    int64  `json:"disk_gb,omitempty"`
 }
 
 type CreateWorkloadRequest struct {

@@ -28,7 +28,11 @@ resource "deevnet_workload" "web" {
   name      = "web"
   cores     = 2
   memory_mb = 2048
-  ssh_keys  = [file("~/.ssh/id_ed25519.pub")]
+  ssh_keys  = [file("~/.ssh/id_ed25519.pub")] # the public half; the private key never leaves you
+}
+
+output "login" {
+  value = "ssh ${deevnet_workload.web.login_user}@${deevnet_workload.web.fqdn}"
 }
 
 resource "deevnet_dns_record" "alias" {
