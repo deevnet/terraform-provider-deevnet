@@ -60,6 +60,9 @@ gmqLFDJRFNdwqOjx4/3N
 PEM
 
 fetch() { # url dest
+  # Say what is coming: the Grafana provider is ~28 MB, and a silent curl
+  # that long looks like a hang.
+  echo "downloading $(basename "$1") ..."
   if [ "$SOURCE" = local ]; then curl -fsSL --cacert "$CA" -o "$2" "$1"; else curl -fsSL -o "$2" "$1"; fi
 }
 
