@@ -33,13 +33,14 @@ type workloadModel struct {
 	DiskGB   types.Int64  `tfsdk:"disk_gb"`
 	SSHKeys  types.List   `tfsdk:"ssh_keys"`
 
-	Present types.Bool   `tfsdk:"present"`
-	Status  types.String `tfsdk:"status"`
-	Ordinal types.Int64  `tfsdk:"ordinal"`
-	VMID    types.Int64  `tfsdk:"vmid"`
-	MAC     types.String `tfsdk:"mac"`
-	Address types.String `tfsdk:"address"`
-	FQDN    types.String `tfsdk:"fqdn"`
+	Present   types.Bool   `tfsdk:"present"`
+	Status    types.String `tfsdk:"status"`
+	Ordinal   types.Int64  `tfsdk:"ordinal"`
+	VMID      types.Int64  `tfsdk:"vmid"`
+	MAC       types.String `tfsdk:"mac"`
+	Address   types.String `tfsdk:"address"`
+	FQDN      types.String `tfsdk:"fqdn"`
+	LoginUser types.String `tfsdk:"login_user"`
 }
 
 func (r *workloadResource) Metadata(_ context.Context, req resource.MetadataRequest, resp *resource.MetadataResponse) {
@@ -78,18 +79,19 @@ func (r *workloadResource) Schema(_ context.Context, _ resource.SchemaRequest, r
 			"ssh_keys": schema.ListAttribute{
 				Optional:            true,
 				ElementType:         types.StringType,
-				MarkdownDescription: "Public keys for the cloud-init account.",
+				MarkdownDescription: "Public keys that may log in as `login_user`. Only the public half: the private key stays on your machine. Written when the workload is built; to change them, replace the workload (`terraform apply -replace=...`).",
 			},
 			"present": schema.BoolAttribute{
 				Computed:            true,
 				MarkdownDescription: "Whether the API still holds this workload.",
 			},
-			"status":  computedString("`provisioning` or `ready`."),
-			"ordinal": computedInt("The workload's number within its tenant; the VMID and address derive from it."),
-			"vmid":    computedInt("Proxmox VMID."),
-			"mac":     computedString("MAC, derived from the VMID."),
-			"address": computedString("Address in the tenant's subnet."),
-			"fqdn":    computedString("The name published for it."),
+			"status":     computedString("`provisioning` or `ready`."),
+			"ordinal":    computedInt("The workload's number within its tenant; the VMID and address derive from it."),
+			"vmid":       computedInt("Proxmox VMID."),
+			"mac":        computedString("MAC, derived from the VMID."),
+			"address":    computedString("Address in the tenant's subnet."),
+			"fqdn":       computedString("The name published for it."),
+			"login_user": computedString("The account `ssh_keys` land on: `ssh <login_user>@<fqdn>`."),
 		},
 	}
 }
@@ -122,6 +124,7 @@ func (r *workloadResource) ModifyPlan(ctx context.Context, req resource.ModifyPl
 	plan.MAC = types.StringUnknown()
 	plan.Address = types.StringUnknown()
 	plan.FQDN = types.StringUnknown()
+	plan.LoginUser = types.StringUnknown()
 	resp.Diagnostics.Append(resp.Plan.Set(ctx, plan)...)
 }
 
@@ -208,18 +211,19 @@ func (r *workloadResource) put(ctx context.Context, m workloadModel) (client.Wor
 
 func workloadFrom(w client.Workload, prior workloadModel) workloadModel {
 	return workloadModel{
-		Tenant:   types.StringValue(w.Tenant),
-		Name:     types.StringValue(w.Name),
-		Cores:    types.Int64Value(w.Cores),
-		MemoryMB: types.Int64Value(w.MemoryMB),
-		DiskGB:   types.Int64Value(w.DiskGB),
-		SSHKeys:  prior.SSHKeys,
-		Present:  types.BoolValue(true),
-		Status:   types.StringValue(w.Status),
-		Ordinal:  types.Int64Value(w.Ordinal),
-		VMID:     types.Int64Value(w.VMID),
-		MAC:      types.StringValue(w.MAC),
-		Address:  types.StringValue(w.Address),
-		FQDN:     types.StringValue(w.FQDN),
+		Tenant:    types.StringValue(w.Tenant),
+		Name:      types.StringValue(w.Name),
+		Cores:     types.Int64Value(w.Cores),
+		MemoryMB:  types.Int64Value(w.MemoryMB),
+		DiskGB:    types.Int64Value(w.DiskGB),
+		SSHKeys:   prior.SSHKeys,
+		Present:   types.BoolValue(true),
+		Status:    types.StringValue(w.Status),
+		Ordinal:   types.Int64Value(w.Ordinal),
+		VMID:      types.Int64Value(w.VMID),
+		MAC:       types.StringValue(w.MAC),
+		Address:   types.StringValue(w.Address),
+		FQDN:      types.StringValue(w.FQDN),
+		LoginUser: types.StringValue(w.LoginUser),
 	}
 }
