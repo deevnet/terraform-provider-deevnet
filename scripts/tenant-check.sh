@@ -130,8 +130,7 @@ if [ $OFFLINE -eq 0 ]; then
     case "$v" in *"0 (ok)"*) ok "$3 $1:$2 (TLS verified)" ;; *) miss "$3 $1:$2 ${v:-no answer}" "are you on DVNTM-TD? if so, tell the operator" ;; esac
   }
   https "https://api.mobile.deevnet.net:8080/healthz" "Deevnet API"
-  code=$(curl -s -o /dev/null -w '%{http_code}' --max-time 8 "http://tfstate.mobile.deevnet.net:9000/minio/health/live")
-  case "$code" in [1-5][0-9][0-9]) ok "state store http://tfstate.mobile.deevnet.net:9000 (HTTP $code)" ;; *) miss "state store tfstate.mobile.deevnet.net:9000 did not answer" "are you on DVNTM-TD? if so, tell the operator" ;; esac
+  https "https://tfstate.mobile.deevnet.net:9000/minio/health/live" "state store"
   tls mqtt.mobile.deevnet.net 8883 "MQTT broker"
   tls dv02obs001v01.mobile.deevnet.net 8427 "log store"
   https "https://dv02obs001v01.mobile.deevnet.net:3000/api/health" "Grafana"
