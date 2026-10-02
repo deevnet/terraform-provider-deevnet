@@ -13,7 +13,7 @@
 #                                off-site, terraform fetches it from the registry)
 #
 # Every zip is checked against its SHA256SUMS before it is unpacked. The
-# mobile site's CA is embedded below, so the local download is verified with
+# mobile site's root CA is embedded below, so the local download is verified with
 # nothing else on the laptop. Needs only curl, unzip and shasum or sha256sum.
 
 set -euo pipefail
@@ -35,27 +35,18 @@ for t in curl unzip; do command -v $t >/dev/null || { echo "missing: $t" >&2; ex
 if command -v sha256sum >/dev/null; then SHA="sha256sum"; else SHA="shasum -a 256"; fi
 
 TMP=$(mktemp -d); trap 'rm -rf "$TMP"' EXIT
-CA="$TMP/site-ca.pem"
+CA="$TMP/deevnet-mobile-root-ca.pem"
 cat > "$CA" <<'PEM'
 -----BEGIN CERTIFICATE-----
-MIIDOzCCAiOgAwIBAgIUNFURi+BYDXa773TCiFB57bjC7OkwDQYJKoZIhvcNAQEL
-BQAwJTEjMCEGA1UEAxMaRGVldm5ldCBtb2JpbGUgaW50ZXJuYWwgQ0EwHhcNMjYw
-OTE3MjM1NjA2WhcNMzYwOTE0MjM1NjM2WjAlMSMwIQYDVQQDExpEZWV2bmV0IG1v
-YmlsZSBpbnRlcm5hbCBDQTCCASIwDQYJKoZIhvcNAQEBBQADggEPADCCAQoCggEB
-AM7UYiY+Zar9LzJZubkQqVFulWBxXkxteJt6n6qQzQ4JBpJ+Fns12ZOazFQPJhcE
-Lrjsod9f+xmo5VlObQewKCCd8EsK+DiXOI2ky44rfzoFRGJ95N/bNp+ohS/neBIi
-oDix1feTVx0d6A+Oto/2vGJzqWbb0EAOwnFKowqdfUNS40cgSeVo3bm03uN9iOmk
-Zmn/cjfI2ZEfcJ007ADxiJmX7bfXhOUbvrMKoShM3mmpOC8TVo4c8b5bsHwjOUJU
-BIo6KHsOCBu1EePUXvz7vMC7//EWu1FMUp0UcLE0pxuLHMrUA80BVqqbmVJpB3AK
-4bK6mAG9zGEeJtE+N2muk3ECAwEAAaNjMGEwDgYDVR0PAQH/BAQDAgEGMA8GA1Ud
-EwEB/wQFMAMBAf8wHQYDVR0OBBYEFJKXklMLQkz8utmOfxlCD3cWlqnGMB8GA1Ud
-IwQYMBaAFJKXklMLQkz8utmOfxlCD3cWlqnGMA0GCSqGSIb3DQEBCwUAA4IBAQCQ
-D/V6muGHw5C8GFRUcIxK4VY/bhl5omj/IC1ma3a5iZMTWnyQKRHQT8EXDKWySjKK
-603JD3EVRyvIWJKYa0tpdv0oBR+vUIpGJiC1CNHQfXyXtHHYWqE7vR0tuMFRZ0xn
-b3EXKC3FuOSicwGsIZ4ezbqMxEHueniJ6Upw24PXvtLd0WI0JlQXu0+3OHaSkRQf
-0bNw/Ie/GbiQ5cys2K60X27kl+X/HxthCPnB+2VhFoE4zRfLUMm23rlJOQN4t+8W
-3Fp1LHrcQzpZdlilEJH7wBdqyQ/RDp4Tv/RSd0pfsbbqmjPoZOLx3GCWjCVY93GH
-gmqLFDJRFNdwqOjx4/3N
+MIIBhTCCASygAwIBAgIUNgZVy/teb0xC3zvRp8BnXNlXNMQwCgYIKoZIzj0EAwIw
+ITEfMB0GA1UEAwwWRGVldm5ldCBtb2JpbGUgcm9vdCBDQTAeFw0yNjEwMDIxMDQ5
+MDlaFw00NjEwMDIxMDQ5MDlaMCExHzAdBgNVBAMMFkRlZXZuZXQgbW9iaWxlIHJv
+b3QgQ0EwWTATBgcqhkjOPQIBBggqhkjOPQMBBwNCAAQl8vL60eM2fOSajjy9iBvi
+ErCmQkO1DDy+TEtsvoWxZnRqC+kafTDqhiLIYte0OBWwa7sHYDsDVaGEnzE8Kg0d
+o0IwQDAOBgNVHQ8BAf8EBAMCAQYwDwYDVR0TAQH/BAUwAwEB/zAdBgNVHQ4EFgQU
+2nWqSUsjgx+NksYzLr3w8j6alsowCgYIKoZIzj0EAwIDRwAwRAIgO116ad3N3ZzG
+xpHMTLlg+S18MzWcS240JFmgdwuVEOgCIFDwN+ipeq3Q7ohkEv5I7w1KMITwbNt1
+F/EqT75H7m5l
 -----END CERTIFICATE-----
 PEM
 

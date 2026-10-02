@@ -4,7 +4,7 @@
 #
 #   bash tenant-check.sh              tools, then the site's services (on DVNTM-TD)
 #   bash tenant-check.sh --offline    tools only (at home, before the meetup)
-#   bash tenant-check.sh --write-ca . also write the site CA as ./site-ca.pem
+#   bash tenant-check.sh --write-ca . also write the site root as ./deevnet-mobile-root-ca.pem
 #
 # Read-only apart from --write-ca: it looks for tools, resolves names and
 # opens connections. macOS first; Linux (dnf or apt) too. Each missing tool
@@ -28,33 +28,24 @@ while [ $# -gt 0 ]; do
   shift
 done
 
-# --- Site CA (mobile internal CA, valid to 2036-09-14) ---------------------------
-# SHA-256 fingerprint ED:ED:43:04:B8:40:8A:CE:14:FE:B8:AB:6C:B6:43:BC:A5:56:84:E8:26:A3:C2:75:CD:BD:EB:70:DF:E5:2D:5C
+# --- Site root (Deevnet mobile root CA, valid to 2046-10-02; ADR-0030) ---------
+# SHA-256 fingerprint 68:D5:C9:8E:3D:2E:B2:DF:B6:1B:99:E4:F3:4D:F9:D3:B4:65:C3:66:34:97:30:97:36:B7:7B:60:C4:15:2C:6B
 CA=$(mktemp); trap 'rm -f "$CA"' EXIT
 cat > "$CA" <<'PEM'
 -----BEGIN CERTIFICATE-----
-MIIDOzCCAiOgAwIBAgIUNFURi+BYDXa773TCiFB57bjC7OkwDQYJKoZIhvcNAQEL
-BQAwJTEjMCEGA1UEAxMaRGVldm5ldCBtb2JpbGUgaW50ZXJuYWwgQ0EwHhcNMjYw
-OTE3MjM1NjA2WhcNMzYwOTE0MjM1NjM2WjAlMSMwIQYDVQQDExpEZWV2bmV0IG1v
-YmlsZSBpbnRlcm5hbCBDQTCCASIwDQYJKoZIhvcNAQEBBQADggEPADCCAQoCggEB
-AM7UYiY+Zar9LzJZubkQqVFulWBxXkxteJt6n6qQzQ4JBpJ+Fns12ZOazFQPJhcE
-Lrjsod9f+xmo5VlObQewKCCd8EsK+DiXOI2ky44rfzoFRGJ95N/bNp+ohS/neBIi
-oDix1feTVx0d6A+Oto/2vGJzqWbb0EAOwnFKowqdfUNS40cgSeVo3bm03uN9iOmk
-Zmn/cjfI2ZEfcJ007ADxiJmX7bfXhOUbvrMKoShM3mmpOC8TVo4c8b5bsHwjOUJU
-BIo6KHsOCBu1EePUXvz7vMC7//EWu1FMUp0UcLE0pxuLHMrUA80BVqqbmVJpB3AK
-4bK6mAG9zGEeJtE+N2muk3ECAwEAAaNjMGEwDgYDVR0PAQH/BAQDAgEGMA8GA1Ud
-EwEB/wQFMAMBAf8wHQYDVR0OBBYEFJKXklMLQkz8utmOfxlCD3cWlqnGMB8GA1Ud
-IwQYMBaAFJKXklMLQkz8utmOfxlCD3cWlqnGMA0GCSqGSIb3DQEBCwUAA4IBAQCQ
-D/V6muGHw5C8GFRUcIxK4VY/bhl5omj/IC1ma3a5iZMTWnyQKRHQT8EXDKWySjKK
-603JD3EVRyvIWJKYa0tpdv0oBR+vUIpGJiC1CNHQfXyXtHHYWqE7vR0tuMFRZ0xn
-b3EXKC3FuOSicwGsIZ4ezbqMxEHueniJ6Upw24PXvtLd0WI0JlQXu0+3OHaSkRQf
-0bNw/Ie/GbiQ5cys2K60X27kl+X/HxthCPnB+2VhFoE4zRfLUMm23rlJOQN4t+8W
-3Fp1LHrcQzpZdlilEJH7wBdqyQ/RDp4Tv/RSd0pfsbbqmjPoZOLx3GCWjCVY93GH
-gmqLFDJRFNdwqOjx4/3N
+MIIBhTCCASygAwIBAgIUNgZVy/teb0xC3zvRp8BnXNlXNMQwCgYIKoZIzj0EAwIw
+ITEfMB0GA1UEAwwWRGVldm5ldCBtb2JpbGUgcm9vdCBDQTAeFw0yNjEwMDIxMDQ5
+MDlaFw00NjEwMDIxMDQ5MDlaMCExHzAdBgNVBAMMFkRlZXZuZXQgbW9iaWxlIHJv
+b3QgQ0EwWTATBgcqhkjOPQIBBggqhkjOPQMBBwNCAAQl8vL60eM2fOSajjy9iBvi
+ErCmQkO1DDy+TEtsvoWxZnRqC+kafTDqhiLIYte0OBWwa7sHYDsDVaGEnzE8Kg0d
+o0IwQDAOBgNVHQ8BAf8EBAMCAQYwDwYDVR0TAQH/BAUwAwEB/zAdBgNVHQ4EFgQU
+2nWqSUsjgx+NksYzLr3w8j6alsowCgYIKoZIzj0EAwIDRwAwRAIgO116ad3N3ZzG
+xpHMTLlg+S18MzWcS240JFmgdwuVEOgCIFDwN+ipeq3Q7ohkEv5I7w1KMITwbNt1
+F/EqT75H7m5l
 -----END CERTIFICATE-----
 PEM
 if [ -n "$WRITE_CA" ]; then
-  mkdir -p "$WRITE_CA" && cp "$CA" "$WRITE_CA/site-ca.pem" && echo "wrote $WRITE_CA/site-ca.pem"
+  mkdir -p "$WRITE_CA" && cp "$CA" "$WRITE_CA/deevnet-mobile-root-ca.pem" && echo "wrote $WRITE_CA/deevnet-mobile-root-ca.pem"
 fi
 
 # --- Where are we ------------------------------------------------------------------
