@@ -95,9 +95,9 @@ The provider is not in the public registry. It goes into Terraform's implicit lo
 # At a Deevnet site, on DVNTM-TD: from the site's tenant downloads (also installs the
 # grafana provider for dashboards as code). Check the site root's fingerprint against the
 # tenant guide before trusting anything it signs.
-curl -fsSLk -O https://downloads.mobile.deevnet.net:8443/deevnet-mobile-root-ca.pem
-openssl x509 -in deevnet-mobile-root-ca.pem -noout -fingerprint -sha256
-curl -fsSL --cacert deevnet-mobile-root-ca.pem -O https://downloads.mobile.deevnet.net:8443/scripts/install-provider.sh
+curl -fsSLk -O https://downloads.mobile.deevnet.net:8443/deevnet-root-ca.pem
+openssl x509 -in deevnet-root-ca.pem -noout -fingerprint -sha256
+curl -fsSL --cacert deevnet-root-ca.pem -O https://downloads.mobile.deevnet.net:8443/scripts/install-provider.sh
 bash install-provider.sh
 
 # Anywhere: prebuilt from this repository's GitHub releases
