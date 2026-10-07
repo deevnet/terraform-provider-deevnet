@@ -10,7 +10,7 @@ terraform {
   required_providers {
     deevnet = {
       source  = "deevnet/deevnet"
-      version = "~> 0.1"
+      version = "~> 0.6"
     }
   }
 
@@ -62,9 +62,17 @@ resource "deevnet_iot_device" "stand" {
   name        = "stand-1"
   trust_class = "iot"
 
-  # Optional, and recorded rather than enforced: the substrate never treats a
-  # MAC as authorization, because it is trivially spoofed on a shared segment.
+  # Never authorization: a MAC is trivially spoofed on a shared segment. It is
+  # needed only because this device asks for a fixed address, below.
   mac = "aa:bb:cc:dd:ee:ff"
+}
+
+# A fixed address on the device network, so the stand is found at the same
+# place every time it joins. The API picks it and this state remembers it; the
+# stand is also published as stand-1.<tenant zone>.
+resource "deevnet_iot_address" "stand" {
+  tenant = deevnet_tenant.this.name
+  device = deevnet_iot_device.stand.name
 }
 
 variable "ssh_keys" {

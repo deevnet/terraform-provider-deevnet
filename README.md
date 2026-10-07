@@ -9,7 +9,7 @@ terraform {
   required_providers {
     deevnet = {
       source  = "deevnet/deevnet"
-      version = "~> 0.4"
+      version = "~> 0.6"
     }
   }
 }
@@ -136,6 +136,7 @@ is their authoritative copy (ADR-0015 §4). Keep that state where ADR-0007 says.
 | `deevnet_dns_record` | a name in the tenant's zone, with its PTR |
 | `deevnet_iot_wifi_key` | a Wi-Fi key for the tenant's IoT devices, bound to its trust class's VLAN |
 | `deevnet_iot_device` | an entry in the tenant's device registry: an identity, carrying no credential |
+| `deevnet_iot_address` | a fixed address on the device network for a registered device, and its name in the tenant's zone |
 | `deevnet_iot_broker_account` | an MQTT account on the platform broker, for a device or a workload |
 
 ## Restore instead of recreate
@@ -164,6 +165,11 @@ Two things follow. A restore sends the password back from state, so the broker i
 clients. And when a create fails at the last step, the provider keeps the account it was handed,
 password included, rather than letting the apply error discard it; the account's `status` is not
 `ready`, so the next plan retries it.
+
+**A device address is restored the same way, though it is no secret.** The device network is shared by
+every tenant, so the API allocates the address rather than deriving it, and this state is what
+remembers which one. A restore asks for the same address again. Dropping the resource from state
+instead would let a rebuilt API hand the device whichever address was lowest at that moment.
 
 Topic patterns are written **relative to the tenant** — `lightstand/+/scene`, never
 `eds/lightstand/+/scene` — and the API writes the prefix. `granted_publish` and `granted_subscribe`

@@ -173,3 +173,54 @@ resource "deevnet_iot_broker_account" "collector" {
 		},
 	})
 }
+
+// A fixed address for a device. The second step is the point: the address was
+// picked by the API, not written in the configuration, so an empty plan means
+// the state carries it and a re-apply would ask for the same one.
+func TestAccIoTAddress(t *testing.T) {
+	if os.Getenv("DEEVNET_TEST_ADDRESSES") == "" {
+		t.Skip("DEEVNET_TEST_ADDRESSES is not set; this writes a DHCP reservation to the core router")
+	}
+	name := testTenant()
+	config := fmt.Sprintf(`
+resource "deevnet_tenant" "this" {
+  name = %q
+}
+
+resource "deevnet_iot_device" "stand" {
+  tenant      = deevnet_tenant.this.name
+  name        = "stand-1"
+  trust_class = "iot"
+  mac         = "02:de:ac:c0:00:01"
+}
+
+resource "deevnet_iot_address" "stand" {
+  tenant = deevnet_tenant.this.name
+  device = deevnet_iot_device.stand.name
+}
+
+# A second name for the same device, which only a reserved address allows.
+resource "deevnet_dns_record" "lights" {
+  tenant  = deevnet_tenant.this.name
+  name    = "lights"
+  address = deevnet_iot_address.stand.address
+}
+`, name)
+
+	resource.Test(t, resource.TestCase{
+		PreCheck:                 func() { preCheck(t) },
+		ProtoV6ProviderFactories: factories,
+		Steps: []resource.TestStep{
+			{
+				Config: config,
+				Check: resource.ComposeAggregateTestCheckFunc(
+					resource.TestCheckResourceAttr("deevnet_iot_address.stand", "status", "ready"),
+					resource.TestCheckResourceAttrSet("deevnet_iot_address.stand", "address"),
+					resource.TestCheckResourceAttr("deevnet_iot_address.stand", "mac", "02:de:ac:c0:00:01"),
+					resource.TestCheckResourceAttrSet("deevnet_iot_address.stand", "fqdn"),
+				),
+			},
+			{Config: config, PlanOnly: true},
+		},
+	})
+}
