@@ -39,8 +39,8 @@ func (r *iotDeviceResource) Schema(_ context.Context, _ resource.SchemaRequest, 
 	resp.Schema = schema.Schema{
 		MarkdownDescription: "A device in the tenant's registry.\n\n" +
 			"The entry **is** the device's identity: an application-owned device takes no " +
-			"substrate host record, leases from its trust class's pool and is named in its " +
-			"owner's own zone.\n\n" +
+			"substrate host record and is named in its owner's own zone. It leases from its " +
+			"trust class's pool unless a `deevnet_iot_address` reserves it a fixed address.\n\n" +
 			"**Registering a device grants it nothing.** It is identity, not authorization. " +
 			"Flash devices with a `deevnet_iot_wifi_key` to put them on the air; that key is " +
 			"per tenant, and does not reference this resource.",
@@ -64,12 +64,13 @@ func (r *iotDeviceResource) Schema(_ context.Context, _ resource.SchemaRequest, 
 			},
 			"mac": schema.StringAttribute{
 				Optional: true,
-				MarkdownDescription: "The device's hardware address, recorded for the tenant's " +
-					"own inventory. **The substrate enforces nothing with it** — a MAC is " +
-					"trivially spoofed on a shared segment, so it is never an authorization " +
-					"input. It is mutable: swapping the hardware behind a name is an inventory " +
-					"change, not a new device. Accepted in any usual spelling and stored " +
-					"lowercase, colon-separated.",
+				MarkdownDescription: "The device's hardware address. **It is never an " +
+					"authorization input** — a MAC is trivially spoofed on a shared segment. " +
+					"It is needed only by a device that is to hold a fixed address " +
+					"(`deevnet_iot_address`), which is reserved for it. It is mutable: swapping " +
+					"the hardware behind a name is an inventory change, not a new device, and a " +
+					"device that holds an address keeps it. Accepted in any usual spelling and " +
+					"stored lowercase, colon-separated.",
 			},
 			"status": computedString("`ready` once the entry exists. Registering calls no backend, so it is ready at once."),
 			"present": schema.BoolAttribute{

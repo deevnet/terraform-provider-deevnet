@@ -255,8 +255,8 @@ type Device struct {
 	Tenant     string `json:"tenant"`
 	Name       string `json:"name"`
 	TrustClass string `json:"trust_class"`
-	// MAC is a label for the owner's own inventory. The substrate enforces
-	// nothing with it.
+	// MAC is never an authorization input. It is what a fixed address is
+	// reserved for, when the tenant asks for one (DeviceAddress).
 	MAC    string `json:"mac,omitempty"`
 	Status string `json:"status"`
 }
@@ -281,6 +281,56 @@ func (c *Client) GetDevice(ctx context.Context, tenant, name string) (Device, er
 
 func (c *Client) DeleteDevice(ctx context.Context, tenant, name string) error {
 	return c.do(ctx, http.MethodDelete, "/v1/tenants/"+tenant+"/devices/"+name, nil, nil)
+}
+
+// DeviceAddress is a fixed address on a trust class's network, reserved for one
+// of a tenant's registered devices (ADR-0035).
+type DeviceAddress struct {
+	Tenant     string `json:"tenant"`
+	Device     string `json:"device"`
+	TrustClass string `json:"trust_class"`
+	Address    string `json:"address"`
+	// MAC is the device's, as registered: what the address is reserved for.
+	MAC string `json:"mac"`
+	// FQDN is the name the API published for the device in the tenant's zone.
+	FQDN   string `json:"fqdn"`
+	Status string `json:"status"`
+}
+
+type PutDeviceAddressRequest struct {
+	// Address is empty on a first apply, when the API picks, and the address
+	// already held on every apply after it.
+	Address string `json:"address,omitempty"`
+}
+
+// PutDeviceAddress reserves an address for a device, or re-applies the one it
+// holds. When the API wrote its own record and the router or the name did not
+// follow, it answers 502 with the record: that is returned with the error, so
+// the caller keeps the address it was given.
+func (c *Client) PutDeviceAddress(ctx context.Context, tenant, device string, req PutDeviceAddressRequest) (DeviceAddress, error) {
+	var out DeviceAddress
+	err := c.do(ctx, http.MethodPost, "/v1/tenants/"+tenant+"/devices/"+device+"/address", req, &out)
+	if err != nil {
+		var ae *APIError
+		var body struct {
+			Address DeviceAddress `json:"address"`
+		}
+		if errors.As(err, &ae) && json.Unmarshal(ae.Body, &body) == nil && body.Address.Address != "" {
+			return body.Address, err
+		}
+		return DeviceAddress{}, err
+	}
+	return out, nil
+}
+
+func (c *Client) GetDeviceAddress(ctx context.Context, tenant, device string) (DeviceAddress, error) {
+	var out DeviceAddress
+	err := c.do(ctx, http.MethodGet, "/v1/tenants/"+tenant+"/devices/"+device+"/address", nil, &out)
+	return out, err
+}
+
+func (c *Client) DeleteDeviceAddress(ctx context.Context, tenant, device string) error {
+	return c.do(ctx, http.MethodDelete, "/v1/tenants/"+tenant+"/devices/"+device+"/address", nil, nil)
 }
 
 // BrokerAccount is a tenant's MQTT account on the platform broker

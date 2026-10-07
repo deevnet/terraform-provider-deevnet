@@ -104,3 +104,54 @@ func TestSecretsStoredIsThreeStated(t *testing.T) {
 		})
 	}
 }
+
+// A first apply names no address; a restore names the one state holds. And a
+// 502 that carries the record hands it back with the error, so the caller keeps
+// the address it was given.
+func TestDeviceAddressRequestAndPartialFailure(t *testing.T) {
+	var gotPath, gotBody string
+	status := http.StatusCreated
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		b, _ := io.ReadAll(r.Body)
+		gotPath, gotBody = r.URL.Path, strings.TrimSpace(string(b))
+		w.WriteHeader(status)
+		if status == http.StatusBadGateway {
+			_, _ = w.Write([]byte(`{"error":"backend step \"device-address\" failed","address":{"tenant":"eds","device":"stand-1","address":"10.20.30.25","status":"provisioning"}}`))
+			return
+		}
+		_, _ = w.Write([]byte(`{"tenant":"eds","device":"stand-1","address":"10.20.30.25","mac":"aa:bb:cc:dd:ee:ff","fqdn":"stand-1.eds.mobile.deevnet.net","status":"ready"}`))
+	}))
+	defer srv.Close()
+	c, err := New(Config{Endpoint: srv.URL, Token: "tok"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	ctx := context.Background()
+
+	a, err := c.PutDeviceAddress(ctx, "eds", "stand-1", PutDeviceAddressRequest{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if gotPath != "/v1/tenants/eds/devices/stand-1/address" || gotBody != "{}" {
+		t.Errorf("first apply sent %s %s, want no address named", gotPath, gotBody)
+	}
+	if a.Address != "10.20.30.25" || a.FQDN != "stand-1.eds.mobile.deevnet.net" || a.Status != "ready" {
+		t.Errorf("answer = %+v", a)
+	}
+
+	if _, err := c.PutDeviceAddress(ctx, "eds", "stand-1", PutDeviceAddressRequest{Address: "10.20.30.25"}); err != nil {
+		t.Fatal(err)
+	}
+	if gotBody != `{"address":"10.20.30.25"}` {
+		t.Errorf("restore sent %s", gotBody)
+	}
+
+	status = http.StatusBadGateway
+	a, err = c.PutDeviceAddress(ctx, "eds", "stand-1", PutDeviceAddressRequest{})
+	if err == nil {
+		t.Fatal("a 502 must be an error")
+	}
+	if a.Address != "10.20.30.25" || a.Status != "provisioning" {
+		t.Errorf("partial = %+v, want the address the API recorded", a)
+	}
+}
