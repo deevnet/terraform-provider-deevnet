@@ -18,7 +18,7 @@ GRAFANA_VERSION := 4.46.0
 ARTIFACTS_ROOT ?= /srv/deevnet-http
 STAGE_DIR      := $(ARTIFACTS_ROOT)/tenant
 
-.PHONY: default help build test testacc vet fmt docs clean mirror release-build release stage
+.PHONY: default help build test testacc vet fmt docs docs-check site site-serve clean mirror release-build release stage
 
 default: help
 
@@ -29,7 +29,10 @@ help:
 	@echo "  testacc  acceptance tests (needs TF_ACC=1 and a Deevnet API; builds real objects)"
 	@echo "  vet      go vet ./..."
 	@echo "  fmt      gofmt -w ."
-	@echo "  docs     regenerate docs/ from the schemas"
+	@echo "  docs     regenerate docs/ from the schemas, examples/ and templates/"
+	@echo "  docs-check  fail if docs/ is stale or does not validate"
+	@echo "  site     build the documentation site into site/public"
+	@echo "  site-serve  serve the documentation site on localhost:1313"
 	@echo "  mirror   install into the local filesystem mirror terraform reads"
 	@echo "  release-build  zips for $(PLATFORMS), SHA256SUMS and the two scripts, in $(DIST)/"
 	@echo "  release  release-build, then a GitHub release with them attached"
@@ -104,9 +107,24 @@ vet:
 fmt:
 	gofmt -w .
 
-# tfplugindocs renders docs/ from the schemas; the registry publishes them.
+# tfplugindocs renders docs/ from the schemas, examples/ and templates/, in the
+# layout the registry reads. Its version is pinned in tools/go.mod. The
+# documentation site (site/) renders the same files.
+TFPLUGINDOCS := cd tools && go run github.com/hashicorp/terraform-plugin-docs/cmd/tfplugindocs
+
 docs:
-	go run github.com/hashicorp/terraform-plugin-docs/cmd/tfplugindocs@latest generate --provider-name deevnet
+	$(TFPLUGINDOCS) generate --provider-dir .. --provider-name deevnet
+
+# What CI runs: a schema or example changed without `make docs` fails here.
+docs-check: docs
+	$(TFPLUGINDOCS) validate --provider-dir .. --provider-name deevnet
+	@test -z "$$(git status --porcelain -- docs)" || { echo "docs/ is stale: run 'make docs' and commit the result" >&2; git status --short -- docs; exit 1; }
+
+site:
+	HUGO_PARAMS_VERSION=$(VERSION) hugo --source site --gc --minify
+
+site-serve:
+	HUGO_PARAMS_VERSION=$(VERSION) hugo server --source site --bind 0.0.0.0 --baseURL http://localhost:1313/terraform-provider-deevnet/
 
 clean:
-	rm -rf $(BINARY) $(DIST)
+	rm -rf $(BINARY) $(DIST) site/public site/resources

@@ -52,8 +52,9 @@ func (r *iotBrokerAccountResource) Schema(_ context.Context, _ resource.SchemaRe
 			"from this state. Use `-replace` only when you mean to revoke.",
 		Attributes: map[string]schema.Attribute{
 			"tenant": schema.StringAttribute{
-				Required:      true,
-				PlanModifiers: []planmodifier.String{stringplanmodifier.RequiresReplace()},
+				Required:            true,
+				MarkdownDescription: "The tenant this broker account belongs to: the `name` of a `deevnet_tenant`.",
+				PlanModifiers:       []planmodifier.String{stringplanmodifier.RequiresReplace()},
 			},
 			"name": schema.StringAttribute{
 				Required:            true,

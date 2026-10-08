@@ -63,12 +63,12 @@ func (r *workloadResource) Schema(_ context.Context, _ resource.SchemaRequest, r
 			},
 			"cores": schema.Int64Attribute{
 				Optional: true, Computed: true,
-				MarkdownDescription: "Defaults to 2.",
+				MarkdownDescription: "Virtual CPU cores. Defaults to 2.",
 				PlanModifiers:       []planmodifier.Int64{int64planmodifier.UseStateForUnknown()},
 			},
 			"memory_mb": schema.Int64Attribute{
 				Optional: true, Computed: true,
-				MarkdownDescription: "Defaults to 2048.",
+				MarkdownDescription: "Memory in MiB. Defaults to 2048.",
 				PlanModifiers:       []planmodifier.Int64{int64planmodifier.UseStateForUnknown()},
 			},
 			"disk_gb": schema.Int64Attribute{

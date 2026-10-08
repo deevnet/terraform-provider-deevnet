@@ -46,8 +46,9 @@ func (r *iotDeviceResource) Schema(_ context.Context, _ resource.SchemaRequest, 
 			"per tenant, and does not reference this resource.",
 		Attributes: map[string]schema.Attribute{
 			"tenant": schema.StringAttribute{
-				Required:      true,
-				PlanModifiers: []planmodifier.String{stringplanmodifier.RequiresReplace()},
+				Required:            true,
+				MarkdownDescription: "The tenant this device belongs to: the `name` of a `deevnet_tenant`.",
+				PlanModifiers:       []planmodifier.String{stringplanmodifier.RequiresReplace()},
 			},
 			"name": schema.StringAttribute{
 				Required:            true,

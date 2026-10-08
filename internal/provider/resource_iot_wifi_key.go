@@ -48,8 +48,9 @@ func (r *iotWiFiKeyResource) Schema(_ context.Context, _ resource.SchemaRequest,
 			"restores the key from this state. Use `-replace` only when you mean to revoke.",
 		Attributes: map[string]schema.Attribute{
 			"tenant": schema.StringAttribute{
-				Required:      true,
-				PlanModifiers: []planmodifier.String{stringplanmodifier.RequiresReplace()},
+				Required:            true,
+				MarkdownDescription: "The tenant this Wi-Fi key belongs to: the `name` of a `deevnet_tenant`.",
+				PlanModifiers:       []planmodifier.String{stringplanmodifier.RequiresReplace()},
 			},
 			"name": schema.StringAttribute{
 				Required:            true,

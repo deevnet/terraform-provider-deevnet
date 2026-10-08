@@ -2,7 +2,7 @@
 
 The Terraform provider for the [Deevnet API](https://github.com/deevnet/deevnet-provisioning-api):
 a tenant declares itself, its workloads and its published names, and holds no substrate credential
-([ADR-0015](https://deevnet.github.io/deevnet-docs/docs/architecture/decisions/0015-tenant-onboarding-through-api/)).
+([ADR-0015](https://deevnet.github.io/deevnet-docs/docs/architecture/decisions/tenant-model/0015-tenant-onboarding-through-api/)).
 
 ```hcl
 terraform {
@@ -85,96 +85,22 @@ output "broker" {
 }
 ```
 
-## Install
+## Documentation
 
-The provider is not in the public registry. It goes into Terraform's implicit local mirror
-(`~/.terraform.d/plugins/registry.terraform.io/deevnet/deevnet/<version>/<os>_<arch>/`), and
-`terraform init` finds it there. Three ways in, fastest first:
+**https://deevnet.github.io/terraform-provider-deevnet/** is the reference: every resource's
+arguments and attributes, generated from the schemas, and three guides.
 
-```bash
-# At a Deevnet site, on DVNTM-TD: from the site's tenant downloads (also installs the
-# grafana provider for dashboards as code). Check the site root's fingerprint against the
-# tenant guide before trusting anything it signs.
-curl -fsSLk -O https://downloads.mobile.deevnet.net:8443/deevnet-root-ca.pem
-openssl x509 -in deevnet-root-ca.pem -noout -fingerprint -sha256
-curl -fsSL --cacert deevnet-root-ca.pem -O https://downloads.mobile.deevnet.net:8443/scripts/install-provider.sh
-bash install-provider.sh
-
-# Anywhere: prebuilt from this repository's GitHub releases
-bash install-provider.sh --github
-
-# From source (needs Go and make): builds for this machine only
-git checkout vX.Y.Z && make mirror
-```
-
-The script verifies every zip against `SHA256SUMS`, and the site's download server against
-the site CA it carries. The only unverified fetch is the CA itself, and its fingerprint is what
-you check. `tenant-check.sh` beside it says what
-else a tenant laptop still needs, with the install command for macOS (brew), Fedora (dnf) or
-Debian/Ubuntu (apt).
-
-Maintainers: `make release` builds `darwin`/`linux` × `amd64`/`arm64` zips with `SHA256SUMS`
-and publishes them as a GitHub release; `make stage` installs the same files into the Builder's
-tenant downloads tree.
-
-## What a tenant holds
-
-One token. The substrate admits a tenant name and issues a **single-use enrollment token**,
-delivered age-encrypted into the tenant's repository. The first apply spends it and receives the
-tenant's own token, which every later call uses. Nothing else about the substrate reaches the
-tenant: no Proxmox credential, no vault access.
-
-The tenant's TSIG key, state-store credential and API token come back into Terraform state, which
-is their authoritative copy (ADR-0015 §4). Keep that state where ADR-0007 says.
-
-## Resources
-
-| Resource | What it is |
+| | |
 |---|---|
-| `deevnet_tenant` | the tenant: index, numbering, DNS zone and key, state-store credential, API token |
-| `deevnet_workload` | a VM in the tenant's network; the API derives its VMID, MAC and address |
-| `deevnet_dns_record` | a name in the tenant's zone, with its PTR |
-| `deevnet_iot_wifi_key` | a Wi-Fi key for the tenant's IoT devices, bound to its trust class's VLAN |
-| `deevnet_iot_device` | an entry in the tenant's device registry: an identity, carrying no credential |
-| `deevnet_iot_address` | a fixed address on the device network for a registered device, and its name in the tenant's zone |
-| `deevnet_iot_broker_account` | an MQTT account on the platform broker, for a device or a workload |
+| [Install](https://deevnet.github.io/terraform-provider-deevnet/docs/guides/install/) | the provider is not in the public registry; three ways into Terraform's local mirror |
+| [Provider](https://deevnet.github.io/terraform-provider-deevnet/docs/provider/) | the provider block and its arguments |
+| [Resources](https://deevnet.github.io/terraform-provider-deevnet/docs/resources/) | the seven resources |
+| [What a Tenant Holds](https://deevnet.github.io/terraform-provider-deevnet/docs/guides/tenant-credential/) | one token, and state as the authoritative copy of what the API issues |
+| [Restore Instead of Recreate](https://deevnet.github.io/terraform-provider-deevnet/docs/guides/restore/) | why `present = false` leads to a restore, never a new object |
 
-## Restore instead of recreate
-
-The framework's advice for a remote object that is gone is to drop it from state and let the next
-plan create a new one. This provider does not, for the secret-bearing resources: a new tenant would
-mean new keys, and a new workload would mean new addressing.
-
-Instead `present` goes `false` when the API no longer holds the object, which makes the next plan an
-update, and the update sends the index and secrets back from state. The API keeps that index when it
-is free, and issues a new one only when another tenant took it (ADR-0012 §5, ADR-0015 §5). That is a
-deliberate exception, confined to these resources.
-
-**A Wi-Fi key is the sharpest case**, because the thing at the other end is a device in a wall. The
-key in state is what its devices were flashed with, so a restore sends it back and the controller is
-made to match them. `secrets_stored: false` triggers the same path, for a key the API still lists
-but can no longer read.
-
-The flip side is worth saying plainly: **`terraform apply -replace`, or removing and re-adding the
-block, issues a NEW key, and every device flashed with the old one stops associating until it is
-reflashed.** There is no guard against that, because revoking is sometimes exactly what you mean.
-
-**A broker account is sharper still.** The API keeps only a bcrypt hash of the password, so unlike a
-Wi-Fi key it cannot resupply one from its own records — this state is the only copy that exists.
-Two things follow. A restore sends the password back from state, so the broker is made to match the
-clients. And when a create fails at the last step, the provider keeps the account it was handed,
-password included, rather than letting the apply error discard it; the account's `status` is not
-`ready`, so the next plan retries it.
-
-**A device address is restored the same way, though it is no secret.** The device network is shared by
-every tenant, so the API allocates the address rather than deriving it, and this state is what
-remembers which one. A restore asks for the same address again. Dropping the resource from state
-instead would let a rebuilt API hand the device whichever address was lowest at that moment.
-
-Topic patterns are written **relative to the tenant** — `lightstand/+/scene`, never
-`eds/lightstand/+/scene` — and the API writes the prefix. `granted_publish` and `granted_subscribe`
-report the absolute form the broker enforces. State records the relative form, so a grant that
-changed on the broker shows up as a diff against the configuration and the next apply corrects it.
+`docs/` is generated, in the layout the Terraform Registry reads: edit the schema descriptions,
+`examples/` or `templates/`, then run `make docs`. CI fails when `docs/` is stale. `site/` is the
+Hugo site that renders it for GitHub Pages.
 
 ## Development
 
@@ -182,7 +108,9 @@ changed on the broker shows up as a diff against the configuration and the next 
 make build     # the provider binary
 make test      # unit tests
 make testacc   # acceptance tests: they build real objects (see below)
-make docs      # regenerate docs/ from the schemas
+make docs      # regenerate docs/ from the schemas, examples/ and templates/
+make docs-check  # what CI runs: regenerate, validate, fail if docs/ changed
+make site-serve  # the documentation site on localhost:1313
 ```
 
 Acceptance tests need a Deevnet API and run only with `TF_ACC=1`:
@@ -200,7 +128,11 @@ hypervisor**. `DEEVNET_TEST_TENANT` must never name a live tenant: the tests cre
 
 ## Releases
 
-Tags are `vMAJOR.MINOR.PATCH`, and a release carries the manifest, `SHA256SUMS` and a GPG signature
-the public registry requires, from the first tag (ADR-0012 §7). The source address is
-`deevnet/deevnet` from day one, served from the site's filesystem mirror while the provider is not
-yet published, so publishing later changes nothing in a tenant's `required_providers`.
+Tags are `vMAJOR.MINOR.PATCH`. `make release` builds `darwin`/`linux` × `amd64`/`arm64` zips with
+`SHA256SUMS`, and publishes them with `install-provider.sh` and `tenant-check.sh` as a GitHub
+release; `make stage` installs the same files into the Builder's tenant downloads tree.
+
+The source address is `deevnet/deevnet` from day one (ADR-0012 §7), served from Terraform's local
+mirror while the provider is not published, so publishing later changes nothing in a tenant's
+`required_providers`. `.goreleaser.yaml` holds the signed, manifest-carrying release the public
+registry requires; nothing runs it yet.

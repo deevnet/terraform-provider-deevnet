@@ -115,31 +115,31 @@ func (r *tenantResource) Schema(_ context.Context, _ resource.SchemaRequest, res
 			},
 			"status":            computedString("`provisioning` or `ready`."),
 			"index":             computedInt("The tenant index every identifier derives from (ADR-0002)."),
-			"vrf_vni":           computedInt("VRF VXLAN id."),
-			"vnet_vni_base":     computedInt("First VNet VXLAN id."),
-			"subnet":            computedString("Overlay subnet."),
-			"gateway":           computedString("Anycast gateway."),
+			"vrf_vni":           computedInt("VXLAN id of the tenant's VRF, derived from the index."),
+			"vnet_vni_base":     computedInt("First VXLAN id of the tenant's VNets, derived from the index."),
+			"subnet":            computedString("The tenant's overlay subnet, in CIDR form."),
+			"gateway":           computedString("The anycast gateway address workloads use on the overlay subnet."),
 			"controller_id":     computedString("EVPN controller the tenant's zone attaches to."),
 			"node":              computedString("Hypervisor the tenant's workloads land on."),
-			"dns_zone":          computedString("Forward zone."),
-			"dns_reverse_zone":  computedString("Reverse zone."),
+			"dns_zone":          computedString("The tenant's forward DNS zone."),
+			"dns_reverse_zone":  computedString("The tenant's reverse DNS zone."),
 			"dns_update_server": computedString("Where RFC 2136 updates go, if the tenant publishes names itself."),
-			"tsig_key_name":     computedString("TSIG key name."),
-			"tsig_algorithm":    computedString("TSIG algorithm."),
+			"tsig_key_name":     computedString("Name of the TSIG key that may update the tenant's zones."),
+			"tsig_algorithm":    computedString("Algorithm of the TSIG key."),
 			"tsig_secret": schema.StringAttribute{
 				Computed:            true,
 				Sensitive:           true,
 				MarkdownDescription: "TSIG secret. This state is its authoritative copy (ADR-0015 §4).",
 				PlanModifiers:       []planmodifier.String{stringplanmodifier.UseStateForUnknown()},
 			},
-			"state_endpoint":   computedString("State store endpoint."),
-			"state_bucket":     computedString("State store bucket."),
+			"state_endpoint":   computedString("S3 endpoint of the state store (ADR-0007)."),
+			"state_bucket":     computedString("The state store bucket this tenant writes to."),
 			"state_key_prefix": computedString("The prefix this tenant may write."),
 			"state_access_key": computedString("State store access key."),
 			"state_secret_key": schema.StringAttribute{
 				Computed:            true,
 				Sensitive:           true,
-				MarkdownDescription: "State store secret key.",
+				MarkdownDescription: "State store secret key. This state is its authoritative copy (ADR-0015 §4).",
 				PlanModifiers:       []planmodifier.String{stringplanmodifier.UseStateForUnknown()},
 			},
 			"log_endpoint":   computedString("The log store this tenant ships to, empty at a site with none (ADR-0027)."),
@@ -163,15 +163,15 @@ func (r *tenantResource) Schema(_ context.Context, _ resource.SchemaRequest, res
 			},
 			"dashboard_url": computedString("The tenant's Grafana, empty at a site with none (ADR-0024). Feed it to the " +
 				"`grafana` provider as `GRAFANA_URL`."),
-			"dashboard_org_id": computedInt("The tenant's own Grafana organisation. The `grafana` provider ignores its " +
+			"dashboard_org_id": computedInt("The tenant's own Grafana organization. The `grafana` provider ignores its " +
 				"provider-level `org_id` under basic auth, so set this as `org_id` on each `grafana_folder` and " +
 				"`grafana_dashboard`."),
-			"dashboard_username": computedString("The tenant's Grafana login: an Editor in its own organisation and a member of no other."),
+			"dashboard_username": computedString("The tenant's Grafana login: an Editor in its own organization and a member of no other."),
 			"dashboard_password": schema.StringAttribute{
 				Computed:  true,
 				Sensitive: true,
 				MarkdownDescription: "The Grafana login's password. Issued by the API, which keeps it sealed, so a " +
-					"reconcile can hand it back. The organisation's three log data sources have fixed UIDs - " +
+					"reconcile can hand it back. The organization's three log data sources have fixed UIDs - " +
 					"`deevnet-logs-workloads`, `deevnet-logs-platform`, `deevnet-logs-devices` - the same on every " +
 					"site and on the take-home Pi.",
 				PlanModifiers: []planmodifier.String{stringplanmodifier.UseStateForUnknown()},
