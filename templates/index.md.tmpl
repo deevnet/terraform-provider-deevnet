@@ -1,0 +1,25 @@
+---
+page_title: "{{.ProviderShortName}} Provider"
+title: "Provider"
+weight: 1
+description: |-
+{{ .Description | plainmarkdown | trimspace | prefixlines "  " }}
+---
+
+# {{.ProviderShortName}} Provider
+
+{{ .Description | trimspace }}
+
+A tenant holds one credential, its Deevnet token, and no substrate credential. The
+[Install](/docs/guides/install/) guide puts the provider where `terraform init` finds it.
+
+{{ if .HasExamples -}}
+## Example Usage
+
+{{- range .ExampleFiles }}
+
+{{ tffile . }}
+{{- end }}
+{{- end }}
+
+{{ .SchemaMarkdown | trimspace }}

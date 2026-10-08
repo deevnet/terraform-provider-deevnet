@@ -14,7 +14,9 @@ address is `deevnet/deevnet` from day one (ADR-0012 §7).
 make build     # the provider binary
 make test      # unit tests
 make testacc   # acceptance tests; needs TF_ACC=1 and a Deevnet API
-make docs      # regenerate docs/ from the schemas
+make docs      # regenerate docs/ from the schemas, examples/ and templates/
+make docs-check  # CI's gate: regenerate, validate, fail if docs/ changed
+make site      # the documentation site (Hugo) into site/public
 ```
 
 ## Rules that are easy to get wrong
@@ -39,3 +41,9 @@ make docs      # regenerate docs/ from the schemas
   password when its own record was written and the writer step was not, and the API keeps only a
   hash. `client.APIError` therefore keeps the raw body, and the resource sets state from the partial
   object before returning the error - the framework persists state set on a failed Create.
+- **`docs/` is generated; never edit it.** A resource page comes from the schema's
+  `MarkdownDescription` strings, `examples/resources/<name>/resource.tf` and
+  `templates/resources.md.tmpl`; a guide from `templates/guides/`. Run `make docs` and commit the
+  result with the change, or CI fails. `site/` is the Hugo site that mounts `docs/` for
+  https://deevnet.github.io/terraform-provider-deevnet/; the `title:` front matter in the templates
+  is what Hugo reads, `page_title:` what the registry reads.

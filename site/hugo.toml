@@ -1,0 +1,46 @@
+baseURL = "https://deevnet.github.io/terraform-provider-deevnet/"
+languageCode = "en-us"
+title = "Deevnet Terraform Provider"
+theme = "hugo-book"
+
+# Enable git-based last modified dates
+enableGitInfo = true
+
+[params]
+  BookTitle = "Deevnet Provider"
+  BookTheme = "auto"
+  BookToC = true
+  BookSearch = true
+  BookRepo = "https://github.com/deevnet/terraform-provider-deevnet"
+  BookSection = "docs"
+  # Resolve in-content /docs/... links through the theme, so they honor the
+  # baseURL subpath (/terraform-provider-deevnet/).
+  BookPortableLinks = true
+  description = "Reference and guides for the deevnet/deevnet Terraform provider"
+  # The release the site was built from; `make site` sets it from git.
+  version = "dev"
+
+[markup]
+  [markup.goldmark]
+    [markup.goldmark.renderer]
+      unsafe = true
+  [markup.tableOfContents]
+    startLevel = 1
+    endLevel = 3
+
+# The reference is not written here: tfplugindocs generates ../docs from the
+# schemas, the examples and the templates (`make docs`), in the layout the
+# Terraform Registry reads. The site renders those same files.
+[module]
+  [[module.mounts]]
+    source = "content"
+    target = "content"
+  [[module.mounts]]
+    source = "../docs/index.md"
+    target = "content/docs/provider.md"
+  [[module.mounts]]
+    source = "../docs/guides"
+    target = "content/docs/guides"
+  [[module.mounts]]
+    source = "../docs/resources"
+    target = "content/docs/resources"

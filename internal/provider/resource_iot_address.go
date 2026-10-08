@@ -50,8 +50,9 @@ func (r *iotAddressResource) Schema(_ context.Context, _ resource.SchemaRequest,
 			"the device.**",
 		Attributes: map[string]schema.Attribute{
 			"tenant": schema.StringAttribute{
-				Required:      true,
-				PlanModifiers: []planmodifier.String{stringplanmodifier.RequiresReplace()},
+				Required:            true,
+				MarkdownDescription: "The tenant this address reservation belongs to: the `name` of a `deevnet_tenant`.",
+				PlanModifiers:       []planmodifier.String{stringplanmodifier.RequiresReplace()},
 			},
 			"device": schema.StringAttribute{
 				Required: true,
