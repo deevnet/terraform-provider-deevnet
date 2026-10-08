@@ -34,6 +34,10 @@ single token, and a tenant holds no other credential.
 <h3>Restore Instead of Recreate</h3>
 <p>What the provider does when the API no longer holds an object.</p>
 </a>
+<a class="section-card" href="docs/release-notes/">
+<h3>Release Notes</h3>
+<p>What changed in each version, and what to do when upgrading.</p>
+</a>
 </div>
 
 ## A whole tenant

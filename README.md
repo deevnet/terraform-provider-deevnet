@@ -97,6 +97,7 @@ arguments and attributes, generated from the schemas, and three guides.
 | [Resources](https://deevnet.github.io/terraform-provider-deevnet/docs/resources/) | the seven resources |
 | [What a Tenant Holds](https://deevnet.github.io/terraform-provider-deevnet/docs/guides/tenant-credential/) | one token, and state as the authoritative copy of what the API issues |
 | [Restore Instead of Recreate](https://deevnet.github.io/terraform-provider-deevnet/docs/guides/restore/) | why `present = false` leads to a restore, never a new object |
+| [Release Notes](https://deevnet.github.io/terraform-provider-deevnet/docs/release-notes/) | what changed in each version; the source is `CHANGELOG.md` |
 
 `docs/` is generated, in the layout the Terraform Registry reads: edit the schema descriptions,
 `examples/` or `templates/`, then run `make docs`. CI fails when `docs/` is stale. `site/` is the
@@ -128,7 +129,8 @@ hypervisor**. `DEEVNET_TEST_TENANT` must never name a live tenant: the tests cre
 
 ## Releases
 
-Tags are `vMAJOR.MINOR.PATCH`. `make release` builds `darwin`/`linux` × `amd64`/`arm64` zips with
+Tags are `vMAJOR.MINOR.PATCH`. Every release has a section in `CHANGELOG.md`, written before the
+tag: `make release` uses it as the release's notes and refuses to run without one. It builds `darwin`/`linux` × `amd64`/`arm64` zips with
 `SHA256SUMS`, and publishes them with `install-provider.sh` and `tenant-check.sh` as a GitHub
 release; `make stage` installs the same files into the Builder's tenant downloads tree.
 

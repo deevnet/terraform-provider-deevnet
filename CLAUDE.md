@@ -47,3 +47,7 @@ make site      # the documentation site (Hugo) into site/public
   result with the change, or CI fails. `site/` is the Hugo site that mounts `docs/` for
   https://deevnet.github.io/terraform-provider-deevnet/; the `title:` front matter in the templates
   is what Hugo reads, `page_title:` what the registry reads.
+- **A user-visible change adds a line to `CHANGELOG.md`**, under `## Unreleased`, in the same
+  commit. Tagging renames that heading to `## X.Y.Z (date)`; `make release` publishes the section as
+  the GitHub release's notes and the site renders the file as Release Notes. Say what a tenant must
+  do under `### Upgrading`, and which API version a new resource needs.

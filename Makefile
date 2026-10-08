@@ -81,9 +81,14 @@ release-build:
 	done
 	@ls -1 $(DIST) $(DIST)/scripts
 
+# The release's notes are its section of CHANGELOG.md, so a release with no
+# entry there is refused: what changed is written before it ships.
 release: release-build
+	@awk '/^## /{on=($$2=="$(MIRROR_VERSION)")} on' CHANGELOG.md | sed '1d' > $(DIST)/NOTES.md
+	@grep -q '[^[:space:]]' $(DIST)/NOTES.md || { echo "CHANGELOG.md has no '## $(MIRROR_VERSION)' section" >&2; exit 1; }
+	@printf '\nInstall: `bash install-provider.sh --github`, or see https://deevnet.github.io/terraform-provider-deevnet/docs/guides/install/\n' >> $(DIST)/NOTES.md
 	gh release create v$(MIRROR_VERSION) $(DIST)/*.zip $(DIST)/SHA256SUMS $(DIST)/scripts/*.sh \
-	  --title "v$(MIRROR_VERSION)" --notes "Prebuilt for $(PLATFORMS). Install: bash install-provider.sh --github"
+	  --title "v$(MIRROR_VERSION)" --notes-file $(DIST)/NOTES.md
 
 # The Builder's tenant downloads tree. install-provider.sh reads
 # provider/<version>/ and scripts/ from it.
