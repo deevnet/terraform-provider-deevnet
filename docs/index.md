@@ -40,5 +40,5 @@ provider "deevnet" {
 ### Optional
 
 - `ca_certificate` (String) Path to the site CA certificate the API's TLS certificate comes from. Defaults to `DEEVNET_API_CACERT`; empty uses the system trust store.
-- `endpoint` (String) The API's base URL, e.g. `https://api.mobile.deevnet.net:8080`. Defaults to `DEEVNET_API_ENDPOINT`.
+- `endpoint` (String) The API's base URL, e.g. `https://api.mobile.deevnet.net`. Defaults to `DEEVNET_API_ENDPOINT`.
 - `token` (String, Sensitive) The bearer token: the tenant's own token, or the single-use enrollment token it was admitted with. Defaults to `DEEVNET_API_TOKEN`.

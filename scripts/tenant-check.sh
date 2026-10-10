@@ -17,7 +17,7 @@
 set -u
 
 VERSION="@VERSION@"
-DOWNLOADS="https://downloads.mobile.deevnet.net:8443"
+DOWNLOADS="https://downloads.mobile.deevnet.net"
 OFFLINE=0; WRITE_CA=""
 while [ $# -gt 0 ]; do
   case "$1" in
@@ -140,11 +140,11 @@ if [ $OFFLINE -eq 0 ]; then
     v=$(echo | openssl s_client -connect "$1:$2" -servername "$1" -CAfile "$CA" 2>&1 | grep -m1 'Verify return code')
     case "$v" in *"0 (ok)"*) ok "$3 $1:$2 (TLS verified)" ;; *) miss "$3 $1:$2 ${v:-no answer}" "are you on DVNTM-TD? if so, tell the operator" ;; esac
   }
-  https "https://api.mobile.deevnet.net:8080/healthz" "Deevnet API"
-  https "https://tfstate.mobile.deevnet.net:9000/minio/health/live" "state store"
+  https "https://api.mobile.deevnet.net/healthz" "Deevnet API"
+  https "https://tfstate.mobile.deevnet.net/minio/health/live" "state store"
   tls mqtt.mobile.deevnet.net 8883 "MQTT broker"
-  tls dv02obs001v01.mobile.deevnet.net 8427 "log store"
-  https "https://dv02obs001v01.mobile.deevnet.net:3000/api/health" "Grafana"
+  tls logs.mobile.deevnet.net 443 "log store"
+  https "https://grafana.mobile.deevnet.net/api/health" "Grafana"
   https "$DOWNLOADS/" "tenant downloads"
 fi
 

@@ -118,7 +118,7 @@ Acceptance tests need a Deevnet API and run only with `TF_ACC=1`:
 
 ```bash
 TF_ACC=1 \
-DEEVNET_API_ENDPOINT=https://api.mobile.deevnet.net:8080 \
+DEEVNET_API_ENDPOINT=https://api.mobile.deevnet.net \
 DEEVNET_API_TOKEN=<operator token> \
 DEEVNET_TEST_TENANT=tfacc \
 make testacc
