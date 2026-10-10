@@ -41,7 +41,7 @@ func (p *deevnetProvider) Schema(_ context.Context, _ provider.SchemaRequest, re
 		Attributes: map[string]schema.Attribute{
 			"endpoint": schema.StringAttribute{
 				Optional:            true,
-				MarkdownDescription: "The API's base URL, e.g. `https://api.mobile.deevnet.net:8080`. Defaults to `DEEVNET_API_ENDPOINT`.",
+				MarkdownDescription: "The API's base URL, e.g. `https://api.mobile.deevnet.net`. Defaults to `DEEVNET_API_ENDPOINT`.",
 			},
 			"token": schema.StringAttribute{
 				Optional:  true,

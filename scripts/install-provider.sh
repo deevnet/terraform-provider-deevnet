@@ -20,7 +20,7 @@ set -euo pipefail
 
 VERSION="${DEEVNET_PROVIDER_VERSION:-@VERSION@}"
 GRAFANA="@GRAFANA@"
-BASE="${DEEVNET_DOWNLOADS:-https://downloads.mobile.deevnet.net:8443}"
+BASE="${DEEVNET_DOWNLOADS:-https://downloads.mobile.deevnet.net}"
 GITHUB="https://github.com/deevnet/terraform-provider-deevnet/releases/download/v$VERSION"
 SOURCE=local
 case "${1:-}" in

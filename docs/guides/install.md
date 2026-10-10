@@ -24,9 +24,9 @@ block reads as it would for a registry provider.
 installs the `grafana` provider, for dashboards as code.
 
 ```bash
-curl -fsSLk -O https://downloads.mobile.deevnet.net:8443/deevnet-root-ca.pem
+curl -fsSLk -O https://downloads.mobile.deevnet.net/deevnet-root-ca.pem
 openssl x509 -in deevnet-root-ca.pem -noout -fingerprint -sha256
-curl -fsSL --cacert deevnet-root-ca.pem -O https://downloads.mobile.deevnet.net:8443/scripts/install-provider.sh
+curl -fsSL --cacert deevnet-root-ca.pem -O https://downloads.mobile.deevnet.net/scripts/install-provider.sh
 bash install-provider.sh
 ```
 
