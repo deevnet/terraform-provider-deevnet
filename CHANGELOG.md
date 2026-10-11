@@ -8,7 +8,7 @@ A resource needs an API that serves it. Each release names the
 [Deevnet API](https://deevnet.github.io/deevnet-provisioning-api/docs/release-notes/) version its
 new resources and attributes need.
 
-## Unreleased
+## 0.7.0 (2026-10-11)
 
 Needs API v0.11.0 for `deevnet_certificate`.
 
