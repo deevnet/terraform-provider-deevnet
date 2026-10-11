@@ -410,6 +410,55 @@ func (c *Client) DeleteBrokerAccount(ctx context.Context, tenant, name string) e
 	return c.do(ctx, http.MethodDelete, "/v1/tenants/"+tenant+"/broker-accounts/"+name, nil, nil)
 }
 
+// Certificate is a server certificate for a name in the tenant's own zone,
+// issued by the site's Tenant Service CA (ADR-0037). Everything in it is
+// public: the key it certifies is the tenant's, and never went to the API.
+type Certificate struct {
+	Tenant string `json:"tenant"`
+	Name   string `json:"name"`
+	// FQDN is the certificate's own name; Names is every DNS name it is valid
+	// for, fully qualified, its own first.
+	FQDN  string   `json:"fqdn"`
+	Names []string `json:"names"`
+	// Certificate is the leaf, PEM. CAChain is what a server presents after
+	// it: the Tenant Service CA, then the Site CA, and never the root.
+	Certificate    string `json:"certificate"`
+	CAChain        string `json:"ca_chain"`
+	Serial         string `json:"serial"`
+	KeyFingerprint string `json:"key_fingerprint"`
+	NotBefore      string `json:"not_before"`
+	NotAfter       string `json:"not_after"`
+	// RenewAfter is when asking again issues a new certificate.
+	RenewAfter string `json:"renew_after"`
+}
+
+type PutCertificateRequest struct {
+	// CSR is a PEM signing request. The API reads it for its public key and
+	// nothing else.
+	CSR string `json:"csr"`
+	// Names are further labels in the tenant's zone, never whole names.
+	Names []string `json:"names,omitempty"`
+}
+
+// PutCertificate issues a certificate, or returns the one already issued for
+// the same key and names while it has more than sixty days left.
+func (c *Client) PutCertificate(ctx context.Context, tenant, name string, req PutCertificateRequest) (Certificate, error) {
+	var out Certificate
+	err := c.do(ctx, http.MethodPut, "/v1/tenants/"+tenant+"/certificates/"+name, req, &out)
+	return out, err
+}
+
+func (c *Client) GetCertificate(ctx context.Context, tenant, name string) (Certificate, error) {
+	var out Certificate
+	err := c.do(ctx, http.MethodGet, "/v1/tenants/"+tenant+"/certificates/"+name, nil, &out)
+	return out, err
+}
+
+// DeleteCertificate has the API forget a certificate. It is not revoked.
+func (c *Client) DeleteCertificate(ctx context.Context, tenant, name string) error {
+	return c.do(ctx, http.MethodDelete, "/v1/tenants/"+tenant+"/certificates/"+name, nil, nil)
+}
+
 // Record is a name the tenant publishes beside its workloads'.
 type Record struct {
 	Name    string `json:"name"`

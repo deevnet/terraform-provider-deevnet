@@ -5,7 +5,7 @@ weight: 3
 
 # Resources
 
-**The provider has seven resources and no data sources.** Each page is generated from the
+**The provider has eight resources and no data sources.** Each page is generated from the
 resource's schema.
 
 | Resource | What it is |
@@ -17,3 +17,4 @@ resource's schema.
 | [`deevnet_iot_device`](/docs/resources/iot_device/) | an entry in the tenant's device registry: an identity, carrying no credential |
 | [`deevnet_iot_address`](/docs/resources/iot_address/) | a fixed address on the device network for a registered device, and its name in the tenant's zone |
 | [`deevnet_iot_broker_account`](/docs/resources/iot_broker_account/) | an MQTT account on the platform broker, for a device or a workload |
+| [`deevnet_certificate`](/docs/resources/certificate/) | a server certificate for one of the tenant's own services, for a name in its zone; the tenant keeps the key |

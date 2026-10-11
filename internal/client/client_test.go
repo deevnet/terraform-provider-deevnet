@@ -155,3 +155,60 @@ func TestDeviceAddressRequestAndPartialFailure(t *testing.T) {
 		t.Errorf("partial = %+v, want the address the API recorded", a)
 	}
 }
+
+// A certificate request carries a signing request and labels, by name, and
+// nothing else: there is no lifetime or usage to send.
+func TestCertificateRequests(t *testing.T) {
+	var gotMethod, gotPath, gotBody string
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		raw, _ := io.ReadAll(r.Body)
+		gotMethod, gotPath, gotBody = r.Method, r.URL.Path, string(raw)
+		if strings.HasSuffix(r.URL.Path, "/missing") {
+			w.WriteHeader(http.StatusNotFound)
+			return
+		}
+		if r.Method == http.MethodDelete {
+			w.WriteHeader(http.StatusNoContent)
+			return
+		}
+		_, _ = w.Write([]byte(`{"tenant":"eds","name":"console","fqdn":"console.eds.mobile.deevnet.net",
+		  "names":["console.eds.mobile.deevnet.net","www.eds.mobile.deevnet.net"],
+		  "certificate":"LEAF","ca_chain":"CHAIN","serial":"0a","key_fingerprint":"abc",
+		  "not_before":"2026-10-11T12:00:00Z","not_after":"2027-10-11T12:00:00Z","renew_after":"2027-08-12T12:00:00Z"}`))
+	}))
+	defer srv.Close()
+	c, err := New(Config{Endpoint: srv.URL, Token: "tok"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	ctx := context.Background()
+
+	got, err := c.PutCertificate(ctx, "eds", "console", PutCertificateRequest{CSR: "CSR", Names: []string{"www"}})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if gotMethod != http.MethodPut || gotPath != "/v1/tenants/eds/certificates/console" {
+		t.Errorf("called %s %s", gotMethod, gotPath)
+	}
+	if gotBody != `{"csr":"CSR","names":["www"]}` {
+		t.Errorf("sent %s", gotBody)
+	}
+	if got.FQDN != "console.eds.mobile.deevnet.net" || len(got.Names) != 2 || got.RenewAfter != "2027-08-12T12:00:00Z" {
+		t.Errorf("got %+v", got)
+	}
+
+	// With no further names the field is left out, not sent empty.
+	if _, err := c.PutCertificate(ctx, "eds", "console", PutCertificateRequest{CSR: "CSR"}); err != nil {
+		t.Fatal(err)
+	}
+	if gotBody != `{"csr":"CSR"}` {
+		t.Errorf("sent %s", gotBody)
+	}
+
+	if _, err := c.GetCertificate(ctx, "eds", "missing"); !errors.Is(err, ErrNotFound) {
+		t.Errorf("a missing certificate: %v", err)
+	}
+	if err := c.DeleteCertificate(ctx, "eds", "console"); err != nil || gotMethod != http.MethodDelete {
+		t.Errorf("delete: %s %v", gotMethod, err)
+	}
+}
