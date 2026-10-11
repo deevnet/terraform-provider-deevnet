@@ -94,7 +94,7 @@ arguments and attributes, generated from the schemas, and three guides.
 |---|---|
 | [Install](https://deevnet.github.io/terraform-provider-deevnet/docs/guides/install/) | the provider is not in the public registry; three ways into Terraform's local mirror |
 | [Provider](https://deevnet.github.io/terraform-provider-deevnet/docs/provider/) | the provider block and its arguments |
-| [Resources](https://deevnet.github.io/terraform-provider-deevnet/docs/resources/) | the seven resources |
+| [Resources](https://deevnet.github.io/terraform-provider-deevnet/docs/resources/) | the eight resources |
 | [What a Tenant Holds](https://deevnet.github.io/terraform-provider-deevnet/docs/guides/tenant-credential/) | one token, and state as the authoritative copy of what the API issues |
 | [Restore Instead of Recreate](https://deevnet.github.io/terraform-provider-deevnet/docs/guides/restore/) | why `present = false` leads to a restore, never a new object |
 | [Release Notes](https://deevnet.github.io/terraform-provider-deevnet/docs/release-notes/) | what changed in each version; the source is `CHANGELOG.md` |

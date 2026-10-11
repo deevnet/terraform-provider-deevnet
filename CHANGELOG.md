@@ -10,12 +10,26 @@ new resources and attributes need.
 
 ## Unreleased
 
+Needs API v0.11.0 for `deevnet_certificate`.
+
 ### Added
 
+- **`deevnet_certificate`**: a server certificate for one of the tenant's own services, for a name
+  in the tenant's own zone, signed by the site's Tenant Service CA (ADR-0037). You make the key,
+  with the `tls` provider, and it never goes to the API; this resource takes a signing request.
+  It chains to the Deevnet Root CA. Once fewer than sixty days remain, a plan shows the resource
+  changing and the apply renews it.
 - A documentation site, https://deevnet.github.io/terraform-provider-deevnet/. The resource
   reference is generated from the schemas, and CI fails when it is stale.
 - A description on every attribute. The `tenant` argument had none on five resources.
 - An example for the provider block and for each resource, under `examples/`.
+
+### Upgrading
+
+- A certificate expires after a year and nothing renews it but an apply. A tenant that holds one
+  should plan at least every ten months; the plan shows the renewal when it is due.
+- `deevnet_certificate` needs the `hashicorp/tls` provider beside this one, for the key and the
+  signing request.
 
 ## 0.6.0 (2026-10-06)
 

@@ -3,6 +3,7 @@ package provider_test
 import (
 	"fmt"
 	"os"
+	"regexp"
 	"testing"
 
 	"github.com/hashicorp/terraform-plugin-framework/providerserver"
@@ -218,6 +219,72 @@ resource "deevnet_dns_record" "lights" {
 					resource.TestCheckResourceAttrSet("deevnet_iot_address.stand", "address"),
 					resource.TestCheckResourceAttr("deevnet_iot_address.stand", "mac", "02:de:ac:c0:00:01"),
 					resource.TestCheckResourceAttrSet("deevnet_iot_address.stand", "fqdn"),
+				),
+			},
+			{Config: config, PlanOnly: true},
+		},
+	})
+}
+
+// A certificate for a name in the tenant's zone, end to end against a real API
+// and a real Tenant Service CA. The second step is PlanOnly: a certificate is
+// asked for with labels and answered with names, and a certificate with a
+// year to run is not due, so a plan that is not empty means the provider is
+// recording something the configuration cannot reproduce.
+func TestAccCertificate(t *testing.T) {
+	if os.Getenv("DEEVNET_TEST_CERTIFICATES") == "" {
+		t.Skip("DEEVNET_TEST_CERTIFICATES is not set; this has the site's Tenant Service CA sign a certificate")
+	}
+	name := testTenant()
+	config := fmt.Sprintf(`
+resource "deevnet_tenant" "this" {
+  name = %q
+}
+
+resource "tls_private_key" "console" {
+  algorithm   = "ECDSA"
+  ecdsa_curve = "P256"
+}
+
+# The request names a place it has no business naming. It is not used.
+resource "tls_cert_request" "console" {
+  private_key_pem = tls_private_key.console.private_key_pem
+  dns_names       = ["grafana.mobile.deevnet.net"]
+
+  subject {
+    common_name = "grafana.mobile.deevnet.net"
+  }
+}
+
+resource "deevnet_certificate" "console" {
+  tenant  = deevnet_tenant.this.name
+  name    = "console"
+  names   = ["www"]
+  csr_pem = tls_cert_request.console.cert_request_pem
+}
+`, name)
+
+	resource.Test(t, resource.TestCase{
+		PreCheck:                 func() { preCheck(t) },
+		ProtoV6ProviderFactories: factories,
+		ExternalProviders: map[string]resource.ExternalProvider{
+			"tls": {Source: "hashicorp/tls"},
+		},
+		Steps: []resource.TestStep{
+			{
+				Config: config,
+				Check: resource.ComposeAggregateTestCheckFunc(
+					resource.TestCheckResourceAttr("deevnet_certificate.console", "present", "true"),
+					resource.TestCheckResourceAttr("deevnet_certificate.console", "dns_names.#", "2"),
+					resource.TestMatchResourceAttr("deevnet_certificate.console", "fqdn",
+						regexp.MustCompile(`^console\.`+name+`\.[a-z0-9]+\.deevnet\.net$`)),
+					resource.TestMatchResourceAttr("deevnet_certificate.console", "dns_names.1",
+						regexp.MustCompile(`^www\.`+name+`\.`)),
+					resource.TestMatchResourceAttr("deevnet_certificate.console", "certificate_pem",
+						regexp.MustCompile(`^-----BEGIN CERTIFICATE-----`)),
+					resource.TestMatchResourceAttr("deevnet_certificate.console", "ca_chain_pem",
+						regexp.MustCompile(`^-----BEGIN CERTIFICATE-----`)),
+					resource.TestCheckResourceAttrSet("deevnet_certificate.console", "renew_after"),
 				),
 			},
 			{Config: config, PlanOnly: true},
