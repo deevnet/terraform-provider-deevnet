@@ -55,6 +55,7 @@ func TestTheAnswerIsFoldedAndTheArgumentsKept(t *testing.T) {
 		Name:   types.StringValue("console"),
 		CSR:    types.StringValue("-----BEGIN CERTIFICATE REQUEST-----\n..."),
 		Names:  list(t, "www"),
+		Sites:  list(t, "mobile", "home"),
 	}
 	got, diags := certificateFrom(context.Background(), prior, client.Certificate{
 		Tenant: "eds", Name: "console", FQDN: "console.eds.mobile.deevnet.net",
@@ -66,7 +67,7 @@ func TestTheAnswerIsFoldedAndTheArgumentsKept(t *testing.T) {
 	if diags.HasError() {
 		t.Fatal(diags)
 	}
-	if !got.CSR.Equal(prior.CSR) || !got.Names.Equal(prior.Names) || !got.Name.Equal(prior.Name) {
+	if !got.CSR.Equal(prior.CSR) || !got.Names.Equal(prior.Names) || !got.Name.Equal(prior.Name) || !got.Sites.Equal(prior.Sites) {
 		t.Errorf("the arguments were rewritten: names %v", strsOf(t, got.Names))
 	}
 	if names := strsOf(t, got.DNSNames); len(names) != 2 || names[1] != "www.eds.mobile.deevnet.net" {

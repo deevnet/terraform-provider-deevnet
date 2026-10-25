@@ -197,6 +197,14 @@ func TestCertificateRequests(t *testing.T) {
 		t.Errorf("got %+v", got)
 	}
 
+	// Sites go as they are written.
+	if _, err := c.PutCertificate(ctx, "eds", "console", PutCertificateRequest{CSR: "CSR", Sites: []string{"mobile", "home"}}); err != nil {
+		t.Fatal(err)
+	}
+	if gotBody != `{"csr":"CSR","sites":["mobile","home"]}` {
+		t.Errorf("sent %s", gotBody)
+	}
+
 	// With no further names the field is left out, not sent empty.
 	if _, err := c.PutCertificate(ctx, "eds", "console", PutCertificateRequest{CSR: "CSR"}); err != nil {
 		t.Fatal(err)

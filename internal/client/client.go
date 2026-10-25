@@ -436,8 +436,11 @@ type PutCertificateRequest struct {
 	// CSR is a PEM signing request. The API reads it for its public key and
 	// nothing else.
 	CSR string `json:"csr"`
-	// Names are further labels in the tenant's zone, never whole names.
+	// Names are further labels, never whole names.
 	Names []string `json:"names,omitempty"`
+	// Sites are the sites to name the certificate at, beside its site-less
+	// names. Empty means the API's own site.
+	Sites []string `json:"sites,omitempty"`
 }
 
 // PutCertificate issues a certificate, or returns the one already issued for
