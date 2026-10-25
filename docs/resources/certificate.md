@@ -3,20 +3,23 @@ page_title: "deevnet_certificate Resource - deevnet"
 title: "deevnet_certificate"
 subcategory: ""
 description: |-
-  A server certificate for one of the tenant's own services, for a name in the tenant's own zone, signed by the site's Tenant Service CA. It chains to the Deevnet Root CA, which every client on a site already trusts.
+  A server certificate for one of the tenant's own services, signed by the Tenant Service CA. It chains to the Deevnet Root CA, which every client on a site already trusts.
   You make the key and keep it. This resource takes a signing request, not a key: make both with the tls provider (tls_private_key, tls_cert_request). The key stays in your state and on your workload, and never goes to the API.
-  The request is read for its public key alone. Its subject and its names are not used. The certificate is for <name>.<tenant zone>, and for each of names in the same zone, whatever the request says.
+  The request is read for its public key alone. Its subject and its names are not used, whatever they say.
+  A service is named for its whole life, and its sites are extra names. The certificate's common name is <name>.<tenant>.deevnet.net, each of names follows the same way, and then each label again at each of sites, as <label>.<tenant>.<site>.deevnet.net. A move to a site already listed needs no new certificate.
   It expires after a year, and renewing is an apply. Once fewer than sixty days remain, a plan shows this resource changing, and the apply issues a new certificate for the same key. Nothing renews it if you do not apply: run a plan at least every ten months. Whatever serves the certificate then needs the new one.
   A certificate cannot be withdrawn. Destroying this resource, or replacing its key, does not revoke the old certificate, which stays valid until it expires wherever its key still is.
 ---
 
 # deevnet_certificate (Resource)
 
-A server certificate for one of the tenant's own services, for a name in the tenant's own zone, signed by the site's Tenant Service CA. It chains to the Deevnet Root CA, which every client on a site already trusts.
+A server certificate for one of the tenant's own services, signed by the Tenant Service CA. It chains to the Deevnet Root CA, which every client on a site already trusts.
 
 **You make the key and keep it.** This resource takes a signing request, not a key: make both with the `tls` provider (`tls_private_key`, `tls_cert_request`). The key stays in your state and on your workload, and never goes to the API.
 
-**The request is read for its public key alone.** Its subject and its names are not used. The certificate is for `<name>.<tenant zone>`, and for each of `names` in the same zone, whatever the request says.
+**The request is read for its public key alone.** Its subject and its names are not used, whatever they say.
+
+**A service is named for its whole life, and its sites are extra names.** The certificate's common name is `<name>.<tenant>.deevnet.net`, each of `names` follows the same way, and then each label again at each of `sites`, as `<label>.<tenant>.<site>.deevnet.net`. A move to a site already listed needs no new certificate.
 
 **It expires after a year, and renewing is an apply.** Once fewer than sixty days remain, a plan shows this resource changing, and the apply issues a new certificate for the same key. Nothing renews it if you do not apply: run a plan at least every ten months. Whatever serves the certificate then needs the new one.
 
@@ -67,12 +70,13 @@ output "console_tls_fullchain" {
 ### Required
 
 - `csr_pem` (String) A PEM signing request made with your key: `tls_cert_request.<name>.cert_request_pem`. The key must be RSA of 2048 bits or more, or ECDSA P-256. A request for a new key issues a new certificate.
-- `name` (String) The certificate's own name: one DNS label under the tenant's zone, such as `console`. A label, not a full name: the API appends the zone.
+- `name` (String) The certificate's own name: one DNS label, such as `console`. A label, not a full name: the API builds every name. `device` is reserved.
 - `tenant` (String) The tenant this certificate belongs to: the `name` of a `deevnet_tenant`.
 
 ### Optional
 
-- `names` (List of String) Further labels in the tenant's zone for the certificate to be valid for, beside `name`. Up to seven. No dots and no wildcards.
+- `names` (List of String) Further labels for the certificate to be valid for, beside `name`. Up to seven. No dots and no wildcards.
+- `sites` (List of String) The sites to name the certificate at, beside its site-less names: where it runs and where it is headed, such as `["mobile", "home"]`. Each must be one the API issues for. Unset means the API's own site. Needs API v0.15.0.
 
 ### Read-Only
 

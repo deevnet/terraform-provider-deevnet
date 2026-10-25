@@ -37,6 +37,7 @@ type certificateModel struct {
 	Name   types.String `tfsdk:"name"`
 	CSR    types.String `tfsdk:"csr_pem"`
 	Names  types.List   `tfsdk:"names"`
+	Sites  types.List   `tfsdk:"sites"`
 
 	FQDN           types.String `tfsdk:"fqdn"`
 	DNSNames       types.List   `tfsdk:"dns_names"`
@@ -57,12 +58,14 @@ func (r *certificateResource) Metadata(_ context.Context, req resource.MetadataR
 
 func (r *certificateResource) Schema(_ context.Context, _ resource.SchemaRequest, resp *resource.SchemaResponse) {
 	resp.Schema = schema.Schema{
-		MarkdownDescription: "A server certificate for one of the tenant's own services, for a name in the tenant's own zone, " +
-			"signed by the site's Tenant Service CA. It chains to the Deevnet Root CA, which every client on a site already trusts.\n\n" +
+		MarkdownDescription: "A server certificate for one of the tenant's own services, " +
+			"signed by the Tenant Service CA. It chains to the Deevnet Root CA, which every client on a site already trusts.\n\n" +
 			"**You make the key and keep it.** This resource takes a signing request, not a key: make both with the `tls` provider " +
 			"(`tls_private_key`, `tls_cert_request`). The key stays in your state and on your workload, and never goes to the API.\n\n" +
-			"**The request is read for its public key alone.** Its subject and its names are not used. The certificate is for " +
-			"`<name>.<tenant zone>`, and for each of `names` in the same zone, whatever the request says.\n\n" +
+			"**The request is read for its public key alone.** Its subject and its names are not used, whatever they say.\n\n" +
+			"**A service is named for its whole life, and its sites are extra names.** The certificate's common name is " +
+			"`<name>.<tenant>.deevnet.net`, each of `names` follows the same way, and then each label again at each of `sites`, " +
+			"as `<label>.<tenant>.<site>.deevnet.net`. A move to a site already listed needs no new certificate.\n\n" +
 			"**It expires after a year, and renewing is an apply.** Once fewer than sixty days remain, a plan shows this resource " +
 			"changing, and the apply issues a new certificate for the same key. Nothing renews it if you do not apply: run a plan " +
 			"at least every ten months. Whatever serves the certificate then needs the new one.\n\n" +
@@ -76,8 +79,8 @@ func (r *certificateResource) Schema(_ context.Context, _ resource.SchemaRequest
 			},
 			"name": schema.StringAttribute{
 				Required: true,
-				MarkdownDescription: "The certificate's own name: one DNS label under the tenant's zone, such as `console`. " +
-					"A label, not a full name: the API appends the zone.",
+				MarkdownDescription: "The certificate's own name: one DNS label, such as `console`. " +
+					"A label, not a full name: the API builds every name. `device` is reserved.",
 				PlanModifiers: []planmodifier.String{stringplanmodifier.RequiresReplace()},
 			},
 			"csr_pem": schema.StringAttribute{
@@ -88,8 +91,15 @@ func (r *certificateResource) Schema(_ context.Context, _ resource.SchemaRequest
 			"names": schema.ListAttribute{
 				ElementType: types.StringType,
 				Optional:    true,
-				MarkdownDescription: "Further labels in the tenant's zone for the certificate to be valid for, beside `name`. " +
+				MarkdownDescription: "Further labels for the certificate to be valid for, beside `name`. " +
 					"Up to seven. No dots and no wildcards.",
+			},
+			"sites": schema.ListAttribute{
+				ElementType: types.StringType,
+				Optional:    true,
+				MarkdownDescription: "The sites to name the certificate at, beside its site-less names: where it runs and where it is " +
+					"headed, such as `[\"mobile\", \"home\"]`. Each must be one the API issues for. Unset means the API's own site. " +
+					"Needs API v0.15.0.",
 			},
 			"fqdn": schema.StringAttribute{
 				Computed:            true,
@@ -262,8 +272,13 @@ func (r *certificateResource) put(ctx context.Context, m certificateModel, state
 	if diags.HasError() {
 		return diags
 	}
+	sites, more := stringsFrom(ctx, m.Sites)
+	diags.Append(more...)
+	if diags.HasError() {
+		return diags
+	}
 	c, err := r.client.PutCertificate(ctx, m.Tenant.ValueString(), m.Name.ValueString(),
-		client.PutCertificateRequest{CSR: m.CSR.ValueString(), Names: names})
+		client.PutCertificateRequest{CSR: m.CSR.ValueString(), Names: names, Sites: sites})
 	if err != nil {
 		diags.AddError("Issuing the certificate failed", err.Error())
 		return diags
@@ -287,6 +302,7 @@ func certificateFrom(ctx context.Context, prior certificateModel, c client.Certi
 		Name:   prior.Name,
 		CSR:    prior.CSR,
 		Names:  prior.Names,
+		Sites:  prior.Sites,
 
 		FQDN:           types.StringValue(c.FQDN),
 		DNSNames:       dnsNames,

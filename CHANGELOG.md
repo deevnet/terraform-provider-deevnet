@@ -8,6 +8,26 @@ A resource needs an API that serves it. Each release names the
 [Deevnet API](https://deevnet.github.io/deevnet-provisioning-api/docs/release-notes/) version its
 new resources and attributes need.
 
+## Unreleased
+
+Needs API v0.15.0 for `sites`.
+
+### Added
+
+- **`sites` on `deevnet_certificate`**: the sites to name the certificate at, beside its
+  site-less names, such as `["mobile", "home"]` (ADR-0040).
+
+### Changed
+
+- **A certificate's names carry no site first** (API v0.15.0): its common name is
+  `<name>.<tenant>.deevnet.net`, then each of `names` the same way, then each label at each of
+  `sites`.
+
+### Upgrading
+
+- The next apply after the API moves to v0.15.0 reissues each certificate with the new names,
+  for the same key. Whatever serves it needs the new one.
+
 ## 0.7.0 (2026-10-11)
 
 Needs API v0.11.0 for `deevnet_certificate`.
