@@ -12,7 +12,7 @@ MIRROR_DIR     := $(HOME)/.terraform.d/plugins/registry.terraform.io/deevnet/dee
 # the way a registry would serve them, with SHA256SUMS. `release` publishes
 # them on GitHub (the off-site route); `stage` puts them in the Builder's
 # tenant downloads tree, which the observability store serves to DVNTM-TD.
-PLATFORMS      := darwin_arm64 darwin_amd64 linux_amd64 linux_arm64
+PLATFORMS      := darwin_arm64 darwin_amd64 linux_amd64 linux_arm64 windows_amd64 windows_arm64
 DIST           := dist
 GRAFANA_VERSION := 4.46.0
 ARTIFACTS_ROOT ?= /srv/deevnet-http
@@ -68,14 +68,15 @@ release-build:
 	esac
 	rm -rf $(DIST) && mkdir -p $(DIST)/scripts
 	@for p in $(PLATFORMS); do \
-	  os=$${p%_*}; arch=$${p#*_}; bin=$(DIST)/$$p/$(BINARY)_v$(MIRROR_VERSION); \
+	  os=$${p%_*}; arch=$${p#*_}; exe=$$([ $$os = windows ] && echo .exe); \
+	  name=$(BINARY)_v$(MIRROR_VERSION)$$exe; \
 	  mkdir -p $(DIST)/$$p; \
-	  CGO_ENABLED=0 GOOS=$$os GOARCH=$$arch go build -trimpath -ldflags "-s -w -X main.version=$(VERSION)" -o $$bin . || exit 1; \
-	  (cd $(DIST)/$$p && zip -q ../$(BINARY)_$(MIRROR_VERSION)_$$p.zip $(BINARY)_v$(MIRROR_VERSION)) || exit 1; \
+	  CGO_ENABLED=0 GOOS=$$os GOARCH=$$arch go build -trimpath -ldflags "-s -w -X main.version=$(VERSION)" -o $(DIST)/$$p/$$name . || exit 1; \
+	  (cd $(DIST)/$$p && zip -q ../$(BINARY)_$(MIRROR_VERSION)_$$p.zip $$name) || exit 1; \
 	  rm -rf $(DIST)/$$p; \
 	done
 	cd $(DIST) && sha256sum *.zip > SHA256SUMS
-	@for f in install-provider.sh tenant-check.sh; do \
+	@for f in install-provider.sh tenant-check.sh install-provider.ps1 tenant-check.ps1; do \
 	  sed -e 's/@VERSION@/$(MIRROR_VERSION)/g' -e 's/@GRAFANA@/$(GRAFANA_VERSION)/g' scripts/$$f > $(DIST)/scripts/$$f; \
 	  chmod 0755 $(DIST)/scripts/$$f; \
 	done
@@ -86,8 +87,8 @@ release-build:
 release: release-build
 	@awk '/^## /{on=($$2=="$(MIRROR_VERSION)")} on' CHANGELOG.md | sed '1d' > $(DIST)/NOTES.md
 	@grep -q '[^[:space:]]' $(DIST)/NOTES.md || { echo "CHANGELOG.md has no '## $(MIRROR_VERSION)' section" >&2; exit 1; }
-	@printf '\nInstall: `bash install-provider.sh --github`, or see https://deevnet.github.io/terraform-provider-deevnet/docs/guides/install/\n' >> $(DIST)/NOTES.md
-	gh release create v$(MIRROR_VERSION) $(DIST)/*.zip $(DIST)/SHA256SUMS $(DIST)/scripts/*.sh \
+	@printf '\nInstall: `bash install-provider.sh --github` (Windows: `.\\install-provider.ps1 -GitHub`), or see https://deevnet.github.io/terraform-provider-deevnet/docs/guides/install/\n' >> $(DIST)/NOTES.md
+	gh release create v$(MIRROR_VERSION) $(DIST)/*.zip $(DIST)/SHA256SUMS $(DIST)/scripts/* \
 	  --title "v$(MIRROR_VERSION)" --notes-file $(DIST)/NOTES.md
 
 # The Builder's tenant downloads tree. install-provider.sh reads
@@ -95,7 +96,7 @@ release: release-build
 stage: release-build
 	sudo install -d -o nginx -g nginx -m 0755 $(STAGE_DIR)/provider/$(MIRROR_VERSION) $(STAGE_DIR)/scripts
 	sudo install -o nginx -g nginx -m 0644 $(DIST)/*.zip $(DIST)/SHA256SUMS $(STAGE_DIR)/provider/$(MIRROR_VERSION)/
-	sudo install -o nginx -g nginx -m 0755 $(DIST)/scripts/*.sh $(STAGE_DIR)/scripts/
+	sudo install -o nginx -g nginx -m 0755 $(DIST)/scripts/* $(STAGE_DIR)/scripts/
 	@echo "staged $(STAGE_DIR)/provider/$(MIRROR_VERSION) and $(STAGE_DIR)/scripts"
 
 test:

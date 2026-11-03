@@ -7,8 +7,9 @@
 #   bash tenant-check.sh --write-ca . also write the Deevnet Root CA as ./deevnet-root-ca.pem
 #
 # Read-only apart from --write-ca: it looks for tools, resolves names and
-# opens connections. macOS first; Linux (dnf or apt) too. Each missing tool
-# comes with the command that installs it on this machine.
+# opens connections. macOS first; Linux (dnf or apt) too, and Linux under
+# WSL2 on Windows. Each missing tool comes with the command that installs it
+# on this machine. Native Windows has tenant-check.ps1.
 #
 #   ok       present / reachable
 #   MISSING  required - the exit status says so
@@ -73,6 +74,8 @@ case "$(uname -s)" in Darwin) OS=darwin; PM=brew ;; Linux) OS=linux
   if command -v dnf >/dev/null; then PM=dnf; elif command -v apt-get >/dev/null; then PM=apt; else PM=other; fi ;;
   *) OS=other; PM=other ;; esac
 case "$(uname -m)" in x86_64|amd64) ARCH=amd64 ;; arm64|aarch64) ARCH=arm64 ;; *) ARCH=$(uname -m) ;; esac
+# WSL2: Linux on a Windows laptop, whose network is Windows' own.
+WSL=0; grep -qi microsoft /proc/sys/kernel/osrelease 2>/dev/null && WSL=1
 
 # hint <tool>: how to install it here
 hint() {
@@ -99,7 +102,7 @@ miss() { printf '  MISSING  %s\n           -> %s\n' "$1" "$2"; M=$((M+1)); }
 warn() { printf '  warn     %s\n           -> %s\n' "$1" "$2"; W=$((W+1)); }
 have() { command -v "$1" >/dev/null 2>&1; }
 
-echo "Deevnet tenant check - $OS/$ARCH ($PM)"
+echo "Deevnet tenant check - $OS/$ARCH ($PM)$([ $WSL -eq 1 ] && echo ', under WSL2')"
 echo
 echo "== To apply your Terraform"
 have git && ok "git" || miss "git" "$(hint git)"
@@ -129,9 +132,30 @@ elif grep -q mdns /etc/nsswitch.conf 2>/dev/null; then ok ".local names (nss-mdn
 else warn ".local names, to reach <hostname>.local" "$(hint mdns)"; fi
 echo "  -        Raspberry Pi Imager and an SD card reader: $DOWNLOADS/tools/"
 
+if [ $WSL -eq 1 ]; then
+  echo
+  echo "== Under WSL2"
+  # NAT mode puts WSL behind a private network of Windows' making; mirrored
+  # mode gives it the laptop's own Wi-Fi address and DVNTM-TD's DNS.
+  mode=$(wslinfo --networking-mode 2>/dev/null | tr -d '\r')
+  case "$mode" in
+    mirrored) ok "networking mode: mirrored" ;;
+    "") warn "networking mode unknown (wslinfo missing: WSL older than 2.0)" "wsl --update in Windows, then networkingMode=mirrored in %UserProfile%\\.wslconfig" ;;
+    *) warn "networking mode: $mode" "networkingMode=mirrored and dnsTunneling=true under [wsl2] in %UserProfile%\\.wslconfig, then wsl --shutdown" ;;
+  esac
+  case "$PWD" in
+    /mnt/[a-z]/*) warn "working under $PWD, a Windows drive" "clone inside WSL (~/...): Windows' checkout rewrites line endings and loses file modes" ;;
+    *) ok "working inside WSL's own filesystem" ;;
+  esac
+  echo "  -        a Pico or ESP32 over USB: usbipd-win in Windows (winget install usbipd), then usbipd attach --wsl"
+fi
+
 if [ $OFFLINE -eq 0 ]; then
   echo
   echo "== The site's services (run this on DVNTM-TD)"
+  if [ $WSL -eq 1 ] && ! getent hosts api.mobile.deevnet.net >/dev/null 2>&1; then
+    miss "api.mobile.deevnet.net does not resolve in WSL" "dnsTunneling=true in %UserProfile%\\.wslconfig (and no VPN in Windows), then wsl --shutdown"
+  fi
   https() { # url label
     code=$(curl -s -o /dev/null -w '%{http_code}' --max-time 8 --cacert "$CA" "$1")
     case "$code" in [1-5][0-9][0-9]) ok "$2 $1 (HTTP $code, TLS verified)" ;; *) miss "$2 $1 did not answer" "are you on DVNTM-TD? if so, tell the operator" ;; esac
