@@ -1,0 +1,6 @@
+# One line ending everywhere, LF, whatever the checkout: a Windows clone with
+# core.autocrlf would otherwise write CRLF into the scripts and Makefile, which
+# bash and make then misread. PowerShell reads LF scripts as they are.
+* text=auto eol=lf
+*.zip binary
+*.png binary

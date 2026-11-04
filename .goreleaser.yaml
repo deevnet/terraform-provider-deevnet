@@ -12,7 +12,7 @@ builds:
     flags: [-trimpath]
     ldflags:
       - "-s -w -X main.version={{.Version}}"
-    goos: [linux, darwin]
+    goos: [linux, darwin, windows]
     goarch: [amd64, arm64]
     binary: "{{ .ProjectName }}_v{{ .Version }}"
 

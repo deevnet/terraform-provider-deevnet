@@ -8,6 +8,18 @@ A resource needs an API that serves it. Each release names the
 [Deevnet API](https://deevnet.github.io/deevnet-provisioning-api/docs/release-notes/) version its
 new resources and attributes need.
 
+## Unreleased
+
+### Added
+
+- **Windows builds**: `windows_amd64` and `windows_arm64` zips in every release, on GitHub and the
+  site's tenant downloads, beside macOS and Linux.
+- **`install-provider.ps1` and `tenant-check.ps1`**: the two scripts for Windows PowerShell 5.1 or
+  7, with nothing else to install. The provider goes into Terraform's Windows mirror,
+  `%APPDATA%\terraform.d\plugins`.
+- **`tenant-check.sh` under WSL2**: it reports the networking mode, a checkout on a Windows drive,
+  and a name the site's DNS does not resolve.
+
 ## 0.8.0 (2026-10-25)
 
 Needs API v0.15.0 for `sites`.
