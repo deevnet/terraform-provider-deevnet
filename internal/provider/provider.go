@@ -100,6 +100,8 @@ func (p *deevnetProvider) Resources(_ context.Context) []func() resource.Resourc
 		NewCertificateResource,
 		NewSecretResource,
 		NewSecretReaderResource,
+		NewBucketResource,
+		NewBucketKeyResource,
 	}
 }
 
