@@ -97,7 +97,9 @@ func (r *bucketResource) Schema(_ context.Context, _ resource.SchemaRequest, res
 			"**The substrate stores your bucket's contents and does not back them up.** Keep your own copy of anything " +
 			"you cannot re-derive.\n\n" +
 			"**The quota is enforced about a minute behind.** The store checks usage periodically, so writes can run " +
-			"past `quota_gb` briefly before they are refused. A single object larger than the quota is refused at once. " +
+			"past `quota_gb` briefly before they are refused. A single-part upload larger than the quota is refused at once, " +
+			"but a multipart upload, which is how most clients send a large object, is counted only after it completes, " +
+			"so one large object can take the bucket past its quota. Writes after it are then refused. " +
 			"The site has a fixed capacity, and quotas are allocated from it, never overcommitted: a create or a quota " +
 			"increase that would exceed it is refused with a message saying how much is left.\n\n" +
 			"**`public_read` serves objects to the site network, never the internet:** anything on the site network " +
@@ -121,8 +123,8 @@ func (r *bucketResource) Schema(_ context.Context, _ resource.SchemaRequest, res
 			},
 			"quota_gb": schema.Int64Attribute{
 				Required: true,
-				MarkdownDescription: "The bucket's hard quota, in GB, at least 1. Changes in place. Enforced about a " +
-					"minute behind; a single object larger than the quota is refused at once.",
+				MarkdownDescription: "The bucket's quota, in GB, at least 1. Changes in place. Enforced about a minute " +
+					"behind; a multipart upload is counted only after it completes.",
 			},
 			"versioning": schema.BoolAttribute{
 				Optional: true,
