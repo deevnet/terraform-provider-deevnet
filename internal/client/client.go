@@ -121,8 +121,12 @@ type Tenant struct {
 		Endpoint     string `json:"endpoint,omitempty"`
 		AccountID    int64  `json:"account_id"`
 		SelectHeader string `json:"select_header,omitempty"`
-		IngestToken  string `json:"ingest_token,omitempty"`
-		ReadToken    string `json:"read_token,omitempty"`
+		// MetricsEndpoint is the metrics store behind the same proxy, written
+		// and read with the same tokens (ADR-0023, CHG-0070). Empty at a site
+		// with none, and from an API older than v0.24.0.
+		MetricsEndpoint string `json:"metrics_endpoint,omitempty"`
+		IngestToken     string `json:"ingest_token,omitempty"`
+		ReadToken       string `json:"read_token,omitempty"`
 	} `json:"log"`
 	// Dashboard is the tenant's Grafana login (ADR-0024, CHG-0024): its own
 	// organisation, where it is an Editor. The password appears on create and
