@@ -8,6 +8,15 @@ A resource needs an API that serves it. Each release names the
 [Deevnet API](https://deevnet.github.io/deevnet-provisioning-api/docs/release-notes/) version its
 new resources and attributes need.
 
+## 0.10.2 (2026-11-14)
+
+### Fixed
+
+- **A restore takes up a reissued state secret.** After the operator reissues a tenant's state
+  secret, its Terraform state still holds the old one. With API 0.22.5 a restore keeps the reissued
+  secret and returns it; the provider now plans `state_secret_key` as known after apply on every
+  restore, so state takes the new value instead of failing with an inconsistent result.
+
 ## 0.10.1 (2026-11-14)
 
 ### Fixed
