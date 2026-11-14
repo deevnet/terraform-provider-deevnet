@@ -10,6 +10,8 @@ new resources and attributes need.
 
 ## Unreleased
 
+## 0.12.0 (2026-11-14)
+
 ### Changed
 
 - `deevnet_tenant` exports `metrics_endpoint`: the tenant's metrics store, written with Prometheus
