@@ -80,3 +80,27 @@ func TestTenantFromTakesTheDashboardLoginAndKeepsItsPassword(t *testing.T) {
 		t.Fatalf("a plain read lost the password: %v", m.DashboardPassword)
 	}
 }
+
+// A tenant created before the site had a log store or dashboards holds no
+// credentials for them, and a read never brings them: ModifyPlan has to plan
+// the restore that does. One that has them, or a site with neither, plans
+// nothing.
+func TestLacksIssuedFindsCredentialsStateNeverReceived(t *testing.T) {
+	old := tenantFrom(tenantWithLog("", ""), tenantModel{})
+	old.DashboardURL = types.StringValue("https://obs.example:3000")
+	if log, dash := lacksIssued(old); !log || !dash {
+		t.Errorf("tenant older than both: log %v, dashboard %v; want both", log, dash)
+	}
+
+	current := tenantFrom(tenantWithLog("i", "r"), tenantModel{})
+	current.DashboardURL = types.StringValue("https://obs.example:3000")
+	current.DashboardPassword = types.StringValue("pw")
+	if log, dash := lacksIssued(current); log || dash {
+		t.Errorf("tenant holding both: log %v, dashboard %v; want neither", log, dash)
+	}
+
+	bare := tenantFrom(client.Tenant{Name: "eds", Index: 2}, tenantModel{})
+	if log, dash := lacksIssued(bare); log || dash {
+		t.Errorf("site with neither: log %v, dashboard %v; want neither", log, dash)
+	}
+}

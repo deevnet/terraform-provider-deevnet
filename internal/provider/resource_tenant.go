@@ -190,9 +190,10 @@ func (r *tenantResource) Configure(_ context.Context, req resource.ConfigureRequ
 	r.client = clientFrom(req.ProviderData, &resp.Diagnostics)
 }
 
-// ModifyPlan turns the two conditions a Read can discover into an apply that
-// fixes them: the tenant is gone from the API, or the API cannot read the secrets
-// it holds for it. Both are answered from this state, which holds the
+// ModifyPlan turns the three conditions a Read can discover into an apply that
+// fixes them: the tenant is gone from the API, the API cannot read the secrets
+// it holds for it, or the site issues a log token or dashboard login this state
+// never received (a tenant created before the site had the service). Both are answered from this state, which holds the
 // authoritative copies (ADR-0015 §4), and neither produces a diff on its own.
 //
 // Every issued
@@ -216,7 +217,8 @@ func (r *tenantResource) ModifyPlan(ctx context.Context, req resource.ModifyPlan
 	}
 	gone := state.Present.Equal(types.BoolValue(false))
 	unreadable := state.SecretsStored.Equal(types.BoolValue(false))
-	if !gone && !unreadable {
+	missingLog, missingDashboard := lacksIssued(state)
+	if !gone && !unreadable && !missingLog && !missingDashboard {
 		return
 	}
 	var plan tenantModel
@@ -230,14 +232,27 @@ func (r *tenantResource) ModifyPlan(ctx context.Context, req resource.ModifyPlan
 	// and everything derived from it are unchanged, because the registry row is
 	// still there. Marking the whole tenant unknown here would show a plan that
 	// implies the network is about to be rebuilt, which it is not.
-	if unreadable && !gone {
-		plan.SecretsStored = types.BoolUnknown()
-		plan.TSIGSecret = types.StringUnknown()
-		plan.StateSecretKey = types.StringUnknown()
-		plan.APIToken = types.StringUnknown()
-		// The log tokens are left as they are. They are not part of the
-		// resupply: the API re-mints and re-writes them itself, because the
-		// store is told what a token is rather than holding the only copy.
+	if !gone {
+		if unreadable {
+			plan.SecretsStored = types.BoolUnknown()
+			plan.TSIGSecret = types.StringUnknown()
+			plan.StateSecretKey = types.StringUnknown()
+			plan.APIToken = types.StringUnknown()
+			// The log tokens are left as they are. They are not part of the
+			// resupply: the API re-mints and re-writes them itself, because the
+			// store is told what a token is rather than holding the only copy.
+		}
+		// A tenant older than the site's log store or dashboards has never been
+		// handed their credentials, and a read never carries them. The update is
+		// a restore over a tenant the API still holds, which it answers as a
+		// reconcile, with the log tokens and the dashboard password.
+		if missingLog {
+			plan.LogIngestToken = types.StringUnknown()
+			plan.LogReadToken = types.StringUnknown()
+		}
+		if missingDashboard {
+			plan.DashboardPassword = types.StringUnknown()
+		}
 		resp.Diagnostics.Append(resp.Plan.Set(ctx, plan)...)
 		return
 	}
@@ -400,6 +415,15 @@ func tenantFrom(t client.Tenant, prior tenantModel) tenantModel {
 		APIToken:          keep(t.APIToken, prior.APIToken),
 	}
 	return m
+}
+
+// lacksIssued reports whether the site has a log store, or dashboards, whose
+// credentials this state never received.
+func lacksIssued(m tenantModel) (log, dashboard bool) {
+	absent := func(v types.String) bool { return v.IsNull() || v.ValueString() == "" }
+	log = m.LogEndpoint.ValueString() != "" && (absent(m.LogIngestToken) || absent(m.LogReadToken))
+	dashboard = m.DashboardURL.ValueString() != "" && absent(m.DashboardPassword)
+	return log, dashboard
 }
 
 func keep(fresh string, prior types.String) types.String {

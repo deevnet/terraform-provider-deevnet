@@ -8,6 +8,16 @@ A resource needs an API that serves it. Each release names the
 [Deevnet API](https://deevnet.github.io/deevnet-provisioning-api/docs/release-notes/) version its
 new resources and attributes need.
 
+## Unreleased
+
+### Fixed
+
+- **A tenant older than its site's log store or dashboards now gets their credentials.** Its state
+  never received `log_ingest_token`, `log_read_token` or `dashboard_password`, and a read never
+  carries them, so they stayed null and any output built from them failed to plan. The provider now
+  plans an update when the site has the service but state has no credential for it; the update is a
+  restore, which the API answers with them. Nothing else about the tenant changes.
+
 ## 0.10.0 (2026-11-14)
 
 Needs API v0.22.0 for `deevnet_secret` and `deevnet_secret_reader`, at a site that offers tenant
