@@ -25,6 +25,12 @@ make site      # the documentation site (Hugo) into site/public
   holds keeps its state and sets `present = false`, so the next apply restores it with the index and
   secrets it already has (ADR-0012 §5, ADR-0015 §5). Recreating would mint new keys and new
   addressing.
+  The exception is tenant secrets (ADR-0021): `deevnet_secret` and `deevnet_secret_reader` do
+  RemoveResource on a 404. A secret's value lives in the tenant's configuration, not state, and a
+  lost reader's `secret_id` is dead with its role, so recreating is the resupply.
+- **`data_wo` is write-only.** Read it from `req.Config`; it is null in plan and state. The unit
+  tests that prove it drive a real `terraform` (1.11+) against an `httptest` fake, and skip
+  without one.
 - **The API issues; the provider records.** Index, VMID, MAC, address and every secret are computed
   attributes with `UseStateForUnknown`, so a plan never proposes changing them.
 - **A tenant holds one credential.** The provider takes a single bearer token. Don't add substrate

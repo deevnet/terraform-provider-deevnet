@@ -8,6 +8,27 @@ A resource needs an API that serves it. Each release names the
 [Deevnet API](https://deevnet.github.io/deevnet-provisioning-api/docs/release-notes/) version its
 new resources and attributes need.
 
+## Unreleased
+
+Needs API v0.22.0 for `deevnet_secret` and `deevnet_secret_reader`, at a site that offers tenant
+secrets.
+
+### Added
+
+- **`deevnet_secret`**: one of your own runtime secrets, such as a third-party API key, written to
+  your OpenBao namespace (ADR-0021). `data_wo` is write-only, so the value never enters your plan or
+  state; this needs Terraform 1.11 or later. Raise `data_wo_version` to write a new value. A secret
+  OpenBao no longer holds is written again by the next apply, from your configuration.
+- **`deevnet_secret_reader`**: the AppRole credential one workload reads its secrets with, for the
+  paths you list. Push `role_id` and `secret_id` with your code and run OpenBao Agent with AppRole
+  auto-auth against `addr` in `namespace`. It works only from the workload's own address, and every
+  change issues a new `secret_id`.
+
+### Upgrading
+
+- Nothing changes for a configuration that does not use the new resources. Using `deevnet_secret`
+  needs Terraform 1.11 or later.
+
 ## 0.9.0 (2026-11-04)
 
 ### Added
