@@ -60,6 +60,7 @@ type tenantModel struct {
 	LogEndpoint       types.String `tfsdk:"log_endpoint"`
 	LogAccountID      types.Int64  `tfsdk:"log_account_id"`
 	LogSelectHeader   types.String `tfsdk:"log_select_header"`
+	MetricsEndpoint   types.String `tfsdk:"metrics_endpoint"`
 	LogIngestToken    types.String `tfsdk:"log_ingest_token"`
 	LogReadToken      types.String `tfsdk:"log_read_token"`
 	DashboardURL      types.String `tfsdk:"dashboard_url"`
@@ -148,6 +149,10 @@ func (r *tenantResource) Schema(_ context.Context, _ resource.SchemaRequest, res
 				"The header a reader sends to choose a partition, for example `X-Deevnet-Partition: 2-1`. " +
 					"Without it a read returns project 0. It selects only among this tenant's partitions: the proxy " +
 					"sets the store's own headers itself."),
+			"metrics_endpoint": computedString(
+				"The metrics store this tenant pushes to with Prometheus remote write (`/api/v1/write`) " +
+					"and queries with the Prometheus API, using `log_ingest_token` and `log_read_token`. " +
+					"`log_select_header` chooses project 0 or 1 as for the logs. Empty at a site with none (ADR-0023)."),
 			"log_ingest_token": schema.StringAttribute{
 				Computed:  true,
 				Sensitive: true,
@@ -287,6 +292,7 @@ func (r *tenantResource) ModifyPlan(ctx context.Context, req resource.ModifyPlan
 	plan.LogEndpoint = types.StringUnknown()
 	plan.LogAccountID = types.Int64Unknown()
 	plan.LogSelectHeader = types.StringUnknown()
+	plan.MetricsEndpoint = types.StringUnknown()
 	// The log tokens too: a tenant the API no longer holds is re-created, and
 	// what it is given then is a fresh pair. That is unlike the broker
 	// account's password, which this provider deliberately keeps, because the
@@ -410,6 +416,7 @@ func tenantFrom(t client.Tenant, prior tenantModel) tenantModel {
 		LogEndpoint:       types.StringValue(t.Log.Endpoint),
 		LogAccountID:      types.Int64Value(t.Log.AccountID),
 		LogSelectHeader:   types.StringValue(t.Log.SelectHeader),
+		MetricsEndpoint:   types.StringValue(t.Log.MetricsEndpoint),
 		LogIngestToken:    keep(t.Log.IngestToken, prior.LogIngestToken),
 		LogReadToken:      keep(t.Log.ReadToken, prior.LogReadToken),
 		DashboardURL:      types.StringValue(t.Dashboard.URL),

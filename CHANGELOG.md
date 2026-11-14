@@ -10,6 +10,13 @@ new resources and attributes need.
 
 ## Unreleased
 
+### Changed
+
+- `deevnet_tenant` exports `metrics_endpoint`: the tenant's metrics store, written with Prometheus
+  remote write and queried with the Prometheus API using the log tokens it already exports
+  (ADR-0023, CHG-0070). Empty at a site with no metrics store. Needs Deevnet API v0.24.0; with an
+  older API it reads as empty.
+
 ### Documentation
 
 - `deevnet_bucket`: the quota note is corrected. Only a single-part upload larger than the quota

@@ -16,6 +16,7 @@ func tenantWithLog(ingest, read string) client.Tenant {
 	t.Log.Endpoint = "https://obs.example:8427"
 	t.Log.AccountID = 2
 	t.Log.SelectHeader = "X-Deevnet-Partition"
+	t.Log.MetricsEndpoint = "https://metrics.example"
 	t.Log.IngestToken = ingest
 	t.Log.ReadToken = read
 	return t
@@ -29,6 +30,9 @@ func TestTenantFromTakesTheLogTokensACreateReturns(t *testing.T) {
 	}
 	if m.LogAccountID.ValueInt64() != 2 || m.LogSelectHeader.ValueString() != "X-Deevnet-Partition" {
 		t.Errorf("account id = %d, select header = %q", m.LogAccountID.ValueInt64(), m.LogSelectHeader.ValueString())
+	}
+	if m.MetricsEndpoint.ValueString() != "https://metrics.example" {
+		t.Errorf("metrics endpoint = %q", m.MetricsEndpoint.ValueString())
 	}
 }
 

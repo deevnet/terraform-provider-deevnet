@@ -59,6 +59,7 @@ output "state_credentials" {
 - `log_ingest_token` (String, Sensitive) Writes this tenant's own log partition. Issued by the API, which keeps it sealed - unlike the API token, so a reconcile can hand it back.
 - `log_read_token` (String, Sensitive) Reads this tenant's three log partitions, and no other tenant's.
 - `log_select_header` (String) The header a reader sends to choose a partition, for example `X-Deevnet-Partition: 2-1`. Without it a read returns project 0. It selects only among this tenant's partitions: the proxy sets the store's own headers itself.
+- `metrics_endpoint` (String) The metrics store this tenant pushes to with Prometheus remote write (`/api/v1/write`) and queries with the Prometheus API, using `log_ingest_token` and `log_read_token`. `log_select_header` chooses project 0 or 1 as for the logs. Empty at a site with none (ADR-0023).
 - `node` (String) Hypervisor the tenant's workloads land on.
 - `present` (Boolean) Whether the API still holds this tenant. False after the API's registry is lost, which makes the next apply restore it from this state rather than create a new one.
 - `secrets_stored` (Boolean) Whether the API can still read the secrets it holds for this tenant. False after its Transit key is rebuilt or rotated past them, which makes the next apply send this state's copies again - they are the authoritative ones.
