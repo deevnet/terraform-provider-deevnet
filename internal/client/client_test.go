@@ -220,3 +220,78 @@ func TestCertificateRequests(t *testing.T) {
 		t.Errorf("delete: %s %v", gotMethod, err)
 	}
 }
+
+// A secret's path keeps its slashes as separators; each segment is escaped by
+// itself. The value goes out, and nothing about it comes back.
+func TestSecretRequests(t *testing.T) {
+	var gotMethod, gotRawPath, gotBody string
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		raw, _ := io.ReadAll(r.Body)
+		gotMethod, gotRawPath, gotBody = r.Method, r.URL.EscapedPath(), string(raw)
+		switch {
+		case strings.HasSuffix(r.URL.Path, "/missing"):
+			w.WriteHeader(http.StatusNotFound)
+		case r.Method == http.MethodDelete:
+			w.WriteHeader(http.StatusNoContent)
+		case strings.Contains(r.URL.Path, "/secret-readers/"):
+			_, _ = w.Write([]byte(`{"name":"lightd","workload":"lightd","paths":["weather/api"],
+			  "role_id":"r","secret_id":"s","namespace":"tenants/eds","addr":"https://bao:8200"}`))
+		case strings.HasSuffix(r.URL.Path, "/offline"):
+			w.WriteHeader(http.StatusConflict)
+			_, _ = w.Write([]byte(`{"error":"tenant secrets are not offered at this site"}`))
+		default:
+			_, _ = w.Write([]byte(`{"path":"weather/api","version":3,"present":true}`))
+		}
+	}))
+	defer srv.Close()
+	c, err := New(Config{Endpoint: srv.URL, Token: "tok"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	ctx := context.Background()
+
+	s, err := c.PutSecret(ctx, "eds", "weather/api", PutSecretRequest{Data: map[string]string{"k": "v"}, Version: 3})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if gotMethod != http.MethodPut || gotRawPath != "/v1/tenants/eds/secrets/weather/api" {
+		t.Errorf("called %s %s", gotMethod, gotRawPath)
+	}
+	if gotBody != `{"data":{"k":"v"},"version":3}` {
+		t.Errorf("sent %s", gotBody)
+	}
+	if s.Version != 3 || !s.Present || s.Path != "weather/api" {
+		t.Errorf("got %+v", s)
+	}
+	if _, err := c.GetSecret(ctx, "eds", "missing"); !errors.Is(err, ErrNotFound) {
+		t.Errorf("a 404 read is %v", err)
+	}
+	if err := c.DeleteSecret(ctx, "eds", "weather/api"); err != nil || gotMethod != http.MethodDelete {
+		t.Errorf("delete: %v, %s", err, gotMethod)
+	}
+	// A site without the service says so, and its words are what surface.
+	if _, err := c.PutSecret(ctx, "eds", "offline", PutSecretRequest{Version: 1}); err == nil ||
+		!strings.Contains(err.Error(), "not offered at this site") {
+		t.Errorf("err = %v", err)
+	}
+
+	rd, err := c.PutSecretReader(ctx, "eds", "lightd", PutSecretReaderRequest{Workload: "lightd", Paths: []string{"weather/api"}})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if gotRawPath != "/v1/tenants/eds/secret-readers/lightd" || gotBody != `{"workload":"lightd","paths":["weather/api"]}` {
+		t.Errorf("called %s with %s", gotRawPath, gotBody)
+	}
+	if rd.SecretID != "s" || rd.RoleID != "r" || rd.Namespace != "tenants/eds" {
+		t.Errorf("got %+v", rd)
+	}
+	if _, err := c.GetSecretReader(ctx, "eds", "missing"); !errors.Is(err, ErrNotFound) {
+		t.Errorf("a 404 read is %v", err)
+	}
+}
+
+func TestSecretPathEscapesEachSegment(t *testing.T) {
+	if got := secretPath("eds", "a b/c?d"); got != "/v1/tenants/eds/secrets/a%20b/c%3Fd" {
+		t.Errorf("got %s", got)
+	}
+}

@@ -98,6 +98,8 @@ func (p *deevnetProvider) Resources(_ context.Context) []func() resource.Resourc
 		NewIoTAddressResource,
 		NewIoTBrokerAccountResource,
 		NewCertificateResource,
+		NewSecretResource,
+		NewSecretReaderResource,
 	}
 }
 

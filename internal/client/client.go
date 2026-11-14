@@ -11,6 +11,7 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"net/url"
 	"os"
 	"strings"
 	"sync"
@@ -460,6 +461,84 @@ func (c *Client) GetCertificate(ctx context.Context, tenant, name string) (Certi
 // DeleteCertificate has the API forget a certificate. It is not revoked.
 func (c *Client) DeleteCertificate(ctx context.Context, tenant, name string) error {
 	return c.do(ctx, http.MethodDelete, "/v1/tenants/"+tenant+"/certificates/"+name, nil, nil)
+}
+
+// Secret is what the API says about one of the tenant's own secrets in its
+// OpenBao namespace (ADR-0021). It never carries the value: the tenant's
+// configuration is the authoritative copy, and the API only stores it.
+type Secret struct {
+	Path    string `json:"path"`
+	Version int64  `json:"version"`
+	Present bool   `json:"present"`
+}
+
+// PutSecretRequest writes a secret's value. Version is the tenant's own
+// counter, so a read can tell which value OpenBao holds.
+type PutSecretRequest struct {
+	Data    map[string]string `json:"data"`
+	Version int64             `json:"version"`
+}
+
+// secretPath is a secret's route. A path is up to four segments joined by
+// "/", and each is escaped by itself so the separators stay separators.
+func secretPath(tenant, path string) string {
+	segs := strings.Split(path, "/")
+	for i, s := range segs {
+		segs[i] = url.PathEscape(s)
+	}
+	return "/v1/tenants/" + tenant + "/secrets/" + strings.Join(segs, "/")
+}
+
+func (c *Client) PutSecret(ctx context.Context, tenant, path string, req PutSecretRequest) (Secret, error) {
+	var out Secret
+	err := c.do(ctx, http.MethodPut, secretPath(tenant, path), req, &out)
+	return out, err
+}
+
+// GetSecret is ErrNotFound for a secret OpenBao does not hold, which is
+// also what a rebuilt OpenBao answers for every secret.
+func (c *Client) GetSecret(ctx context.Context, tenant, path string) (Secret, error) {
+	var out Secret
+	err := c.do(ctx, http.MethodGet, secretPath(tenant, path), nil, &out)
+	return out, err
+}
+
+func (c *Client) DeleteSecret(ctx context.Context, tenant, path string) error {
+	return c.do(ctx, http.MethodDelete, secretPath(tenant, path), nil, nil)
+}
+
+// SecretReader is an AppRole in the tenant's namespace that one workload logs
+// in with to read the paths it was given (ADR-0021). SecretID appears only in
+// the answer to a PUT, and each PUT issues a new one and revokes the old.
+type SecretReader struct {
+	Name      string   `json:"name"`
+	Workload  string   `json:"workload"`
+	Paths     []string `json:"paths"`
+	RoleID    string   `json:"role_id"`
+	SecretID  string   `json:"secret_id,omitempty"`
+	Namespace string   `json:"namespace"`
+	Addr      string   `json:"addr"`
+}
+
+type PutSecretReaderRequest struct {
+	Workload string   `json:"workload"`
+	Paths    []string `json:"paths"`
+}
+
+func (c *Client) PutSecretReader(ctx context.Context, tenant, name string, req PutSecretReaderRequest) (SecretReader, error) {
+	var out SecretReader
+	err := c.do(ctx, http.MethodPut, "/v1/tenants/"+tenant+"/secret-readers/"+url.PathEscape(name), req, &out)
+	return out, err
+}
+
+func (c *Client) GetSecretReader(ctx context.Context, tenant, name string) (SecretReader, error) {
+	var out SecretReader
+	err := c.do(ctx, http.MethodGet, "/v1/tenants/"+tenant+"/secret-readers/"+url.PathEscape(name), nil, &out)
+	return out, err
+}
+
+func (c *Client) DeleteSecretReader(ctx context.Context, tenant, name string) error {
+	return c.do(ctx, http.MethodDelete, "/v1/tenants/"+tenant+"/secret-readers/"+url.PathEscape(name), nil, nil)
 }
 
 // Record is a name the tenant publishes beside its workloads'.
