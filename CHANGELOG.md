@@ -8,6 +8,29 @@ A resource needs an API that serves it. Each release names the
 [Deevnet API](https://deevnet.github.io/deevnet-provisioning-api/docs/release-notes/) version its
 new resources and attributes need.
 
+## 0.11.0 (2026-11-14)
+
+Needs API v0.23.0 for `deevnet_bucket` and `deevnet_bucket_key`, at a site that offers buckets.
+
+### Added
+
+- **`deevnet_bucket`**: a bucket in your site's bucket store, S3-compatible object storage at
+  `endpoint` (ADR-0026). `quota_gb` changes in place, as do `versioning`, `object_lifecycle` and
+  `public_read`. Creating it also creates its `default` key, whose `secret_key` the API returns only
+  then, so your state is the only copy you can read. The substrate does not back up a bucket's
+  contents: keep your own copy of anything you cannot re-derive. The quota is enforced about a
+  minute behind, though an object larger than the quota is refused at once. `public_read` serves
+  objects to the site network, never the internet. A bucket that holds anything is destroyed only
+  with `force_destroy = true`, applied first.
+- **`deevnet_bucket_key`**: a further `read` or `write` key to one bucket. Its `secret_key` is
+  likewise returned only on create, and any change replaces the key.
+
+### Upgrading
+
+- Nothing changes for a configuration that does not use the new resources. The expiry block is
+  `object_lifecycle`, not `lifecycle`, because Terraform reserves that name. Neither resource can
+  be imported: an import could never recover a key's secret.
+
 ## 0.10.2 (2026-11-14)
 
 ### Fixed

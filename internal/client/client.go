@@ -541,6 +541,105 @@ func (c *Client) DeleteSecretReader(ctx context.Context, tenant, name string) er
 	return c.do(ctx, http.MethodDelete, "/v1/tenants/"+tenant+"/secret-readers/"+url.PathEscape(name), nil, nil)
 }
 
+// Bucket is one of the tenant's buckets in the site's bucket store (ADR-0026,
+// CHG-0069). Key appears only in the answer to a create: it is the bucket's
+// "default" key, and its secret is never returned again.
+type Bucket struct {
+	Name string `json:"name"`
+	// Bucket is the store's own name for it, "<tenant>-<name>".
+	Bucket     string          `json:"bucket"`
+	Endpoint   string          `json:"endpoint"`
+	QuotaGB    int64           `json:"quota_gb"`
+	Versioning bool            `json:"versioning"`
+	Lifecycle  BucketLifecycle `json:"lifecycle"`
+	PublicRead bool            `json:"public_read"`
+	Status     string          `json:"status"`
+	Key        *BucketKey      `json:"key,omitempty"`
+}
+
+// BucketLifecycle is a bucket's expiry. Zero means none.
+type BucketLifecycle struct {
+	ExpireDays           int64 `json:"expire_days"`
+	NoncurrentExpireDays int64 `json:"noncurrent_expire_days"`
+}
+
+// BucketSettings is what a create and an update both send. An update cannot
+// change the name, so it sends only these.
+type BucketSettings struct {
+	QuotaGB    int64           `json:"quota_gb"`
+	Versioning bool            `json:"versioning"`
+	Lifecycle  BucketLifecycle `json:"lifecycle"`
+	PublicRead bool            `json:"public_read"`
+}
+
+type CreateBucketRequest struct {
+	Name string `json:"name"`
+	BucketSettings
+}
+
+// BucketKey is an access key to one bucket. SecretKey appears only in the
+// answer to a create: the API keeps it sealed and never returns it.
+type BucketKey struct {
+	Name      string `json:"name"`
+	Access    string `json:"access"`
+	AccessKey string `json:"access_key"`
+	SecretKey string `json:"secret_key,omitempty"`
+}
+
+type CreateBucketKeyRequest struct {
+	Name   string `json:"name"`
+	Access string `json:"access"`
+}
+
+func bucketPath(tenant, bucket string) string {
+	return "/v1/tenants/" + tenant + "/buckets/" + url.PathEscape(bucket)
+}
+
+func (c *Client) CreateBucket(ctx context.Context, tenant string, req CreateBucketRequest) (Bucket, error) {
+	var out Bucket
+	err := c.do(ctx, http.MethodPost, "/v1/tenants/"+tenant+"/buckets", req, &out)
+	return out, err
+}
+
+func (c *Client) GetBucket(ctx context.Context, tenant, name string) (Bucket, error) {
+	var out Bucket
+	err := c.do(ctx, http.MethodGet, bucketPath(tenant, name), nil, &out)
+	return out, err
+}
+
+func (c *Client) UpdateBucket(ctx context.Context, tenant, name string, req BucketSettings) (Bucket, error) {
+	var out Bucket
+	err := c.do(ctx, http.MethodPut, bucketPath(tenant, name), req, &out)
+	return out, err
+}
+
+// DeleteBucket removes a bucket and its keys. Without force the API refuses
+// (409) a bucket that holds any object version; with it, everything in the
+// bucket goes first.
+func (c *Client) DeleteBucket(ctx context.Context, tenant, name string, force bool) error {
+	p := bucketPath(tenant, name)
+	if force {
+		p += "?force=true"
+	}
+	return c.do(ctx, http.MethodDelete, p, nil, nil)
+}
+
+func (c *Client) CreateBucketKey(ctx context.Context, tenant, bucket string, req CreateBucketKeyRequest) (BucketKey, error) {
+	var out BucketKey
+	err := c.do(ctx, http.MethodPost, bucketPath(tenant, bucket)+"/keys", req, &out)
+	return out, err
+}
+
+func (c *Client) GetBucketKey(ctx context.Context, tenant, bucket, name string) (BucketKey, error) {
+	var out BucketKey
+	err := c.do(ctx, http.MethodGet, bucketPath(tenant, bucket)+"/keys/"+url.PathEscape(name), nil, &out)
+	return out, err
+}
+
+func (c *Client) DeleteBucketKey(ctx context.Context, tenant, bucket, name string) error {
+	return c.do(ctx, http.MethodDelete, bucketPath(tenant, bucket)+"/keys/"+url.PathEscape(name), nil, nil)
+}
+
 // Record is a name the tenant publishes beside its workloads'.
 type Record struct {
 	Name    string `json:"name"`
