@@ -253,6 +253,12 @@ func (r *tenantResource) ModifyPlan(ctx context.Context, req resource.ModifyPlan
 		if missingDashboard {
 			plan.DashboardPassword = types.StringUnknown()
 		}
+		// Every restore may come back with another state secret: one the
+		// operator reissued since this state last held it, which the API keeps
+		// over the old copy sent from here, so that state and .backend.env agree
+		// again (API 0.22.5). A value that changed without being unknown in the
+		// plan is an error rather than an update.
+		plan.StateSecretKey = types.StringUnknown()
 		resp.Diagnostics.Append(resp.Plan.Set(ctx, plan)...)
 		return
 	}
