@@ -8,6 +8,14 @@ A resource needs an API that serves it. Each release names the
 [Deevnet API](https://deevnet.github.io/deevnet-provisioning-api/docs/release-notes/) version its
 new resources and attributes need.
 
+## Unreleased
+
+### Documentation
+
+- `deevnet_bucket`: the quota note is corrected. Only a single-part upload larger than the quota
+  is refused at once; a multipart upload, how most clients send a large object, is counted after it
+  completes, so one object can take a bucket past its quota (found in CHG-0069's verification).
+
 ## 0.11.0 (2026-11-14)
 
 Needs API v0.23.0 for `deevnet_bucket` and `deevnet_bucket_key`, at a site that offers buckets.

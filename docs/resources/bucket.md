@@ -6,7 +6,7 @@ description: |-
   A bucket in your site's bucket store: S3-compatible object storage, reached at endpoint path-style (ADR-0026). Needs API v0.23.0, at a site that offers buckets; a site that does not answers with an error saying so.
   Creating a bucket also creates its default key, with write access, in access_key and secret_key. The API returns the secret only when it creates the key, so this state is the only copy you can read. Use deevnet_bucket_key for further keys, such as a read-only one.
   The substrate stores your bucket's contents and does not back them up. Keep your own copy of anything you cannot re-derive.
-  The quota is enforced about a minute behind. The store checks usage periodically, so writes can run past quota_gb briefly before they are refused. A single object larger than the quota is refused at once. The site has a fixed capacity, and quotas are allocated from it, never overcommitted: a create or a quota increase that would exceed it is refused with a message saying how much is left.
+  The quota is enforced about a minute behind. The store checks usage periodically, so writes can run past quota_gb briefly before they are refused. A single-part upload larger than the quota is refused at once, but a multipart upload, which is how most clients send a large object, is counted only after it completes, so one large object can take the bucket past its quota. Writes after it are then refused. The site has a fixed capacity, and quotas are allocated from it, never overcommitted: a create or a quota increase that would exceed it is refused with a message saying how much is left.
   public_read serves objects to the site network, never the internet: anything on the site network that can reach the store can read them by name, without a key.
   Destroying a bucket that holds anything is refused unless force_destroy is true, and that must be in state before the destroy: set it and apply first.
   When the API no longer holds the bucket, the next plan replaces it, with a new default key. This resource cannot be imported: an import could never recover the key's secret.
@@ -20,7 +20,7 @@ A bucket in your site's bucket store: S3-compatible object storage, reached at `
 
 **The substrate stores your bucket's contents and does not back them up.** Keep your own copy of anything you cannot re-derive.
 
-**The quota is enforced about a minute behind.** The store checks usage periodically, so writes can run past `quota_gb` briefly before they are refused. A single object larger than the quota is refused at once. The site has a fixed capacity, and quotas are allocated from it, never overcommitted: a create or a quota increase that would exceed it is refused with a message saying how much is left.
+**The quota is enforced about a minute behind.** The store checks usage periodically, so writes can run past `quota_gb` briefly before they are refused. A single-part upload larger than the quota is refused at once, but a multipart upload, which is how most clients send a large object, is counted only after it completes, so one large object can take the bucket past its quota. Writes after it are then refused. The site has a fixed capacity, and quotas are allocated from it, never overcommitted: a create or a quota increase that would exceed it is refused with a message saying how much is left.
 
 **`public_read` serves objects to the site network, never the internet:** anything on the site network that can reach the store can read them by name, without a key.
 
@@ -66,7 +66,7 @@ output "media_bucket" {
 ### Required
 
 - `name` (String) The bucket's name, unique within the tenant: 3-32 characters, `a-z` first, then `a-z`, `0-9` and `-`, ending in a letter or digit. The store's bucket is `<tenant>-<name>`, which must be 63 characters or fewer. Changing it replaces the bucket.
-- `quota_gb` (Number) The bucket's hard quota, in GB, at least 1. Changes in place. Enforced about a minute behind; a single object larger than the quota is refused at once.
+- `quota_gb` (Number) The bucket's quota, in GB, at least 1. Changes in place. Enforced about a minute behind; a multipart upload is counted only after it completes.
 - `tenant` (String) The tenant this bucket belongs to: the `name` of a `deevnet_tenant`.
 
 ### Optional
