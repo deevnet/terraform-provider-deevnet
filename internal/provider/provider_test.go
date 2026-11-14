@@ -291,3 +291,43 @@ resource "deevnet_certificate" "console" {
 		},
 	})
 }
+
+func TestAccSecret(t *testing.T) {
+	if os.Getenv("DEEVNET_TEST_SECRETS") == "" {
+		t.Skip("DEEVNET_TEST_SECRETS is not set; this writes to the site's OpenBao")
+	}
+	name := testTenant()
+	config := func(version int) string {
+		return fmt.Sprintf(`
+resource "deevnet_tenant" "this" {
+  name = %q
+}
+
+resource "deevnet_secret" "probe" {
+  tenant          = deevnet_tenant.this.name
+  path            = "tfacc/probe"
+  data_wo         = sensitive({ value = "probe-%d" })
+  data_wo_version = %d
+}
+`, name, version, version)
+	}
+
+	resource.Test(t, resource.TestCase{
+		PreCheck:                 func() { preCheck(t) },
+		ProtoV6ProviderFactories: factories,
+		Steps: []resource.TestStep{
+			{
+				Config: config(1),
+				Check: resource.ComposeAggregateTestCheckFunc(
+					resource.TestCheckResourceAttr("deevnet_secret.probe", "id", "tfacc/probe"),
+					resource.TestCheckNoResourceAttr("deevnet_secret.probe", "data_wo.%"),
+				),
+			},
+			{Config: config(1), PlanOnly: true},
+			{
+				Config: config(2),
+				Check:  resource.TestCheckResourceAttr("deevnet_secret.probe", "data_wo_version", "2"),
+			},
+		},
+	})
+}
