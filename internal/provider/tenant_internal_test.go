@@ -92,19 +92,44 @@ func TestTenantFromTakesTheDashboardLoginAndKeepsItsPassword(t *testing.T) {
 func TestLacksIssuedFindsCredentialsStateNeverReceived(t *testing.T) {
 	old := tenantFrom(tenantWithLog("", ""), tenantModel{})
 	old.DashboardURL = types.StringValue("https://obs.example:3000")
-	if log, dash := lacksIssued(old); !log || !dash {
+	if log, dash, _ := lacksIssued(old); !log || !dash {
 		t.Errorf("tenant older than both: log %v, dashboard %v; want both", log, dash)
 	}
 
 	current := tenantFrom(tenantWithLog("i", "r"), tenantModel{})
 	current.DashboardURL = types.StringValue("https://obs.example:3000")
 	current.DashboardPassword = types.StringValue("pw")
-	if log, dash := lacksIssued(current); log || dash {
+	if log, dash, _ := lacksIssued(current); log || dash {
 		t.Errorf("tenant holding both: log %v, dashboard %v; want neither", log, dash)
 	}
 
 	bare := tenantFrom(client.Tenant{Name: "eds", Index: 2}, tenantModel{})
-	if log, dash := lacksIssued(bare); log || dash {
-		t.Errorf("site with neither: log %v, dashboard %v; want neither", log, dash)
+	if log, dash, notify := lacksIssued(bare); log || dash || notify {
+		t.Errorf("site with none: log %v, dashboard %v, notify %v; want none", log, dash, notify)
+	}
+}
+
+// A tenant created before the site had alerting has no ntfy password; a read
+// brings the endpoint and never the password, so ModifyPlan plans the restore
+// that hands it over. A plain read afterwards keeps it.
+func TestTheNtfyLoginIsPlannedForAndKept(t *testing.T) {
+	var fresh client.Tenant
+	fresh.Name, fresh.Index = "eds", 2
+	fresh.Notify.Endpoint, fresh.Notify.Username, fresh.Notify.TopicPrefix = "https://ntfy.example", "eds", "eds-"
+	old := tenantFrom(fresh, tenantModel{})
+	if _, _, notify := lacksIssued(old); !notify {
+		t.Error("a tenant with the endpoint and no password is not planned for")
+	}
+	fresh.Notify.Password = "ntfy-pw"
+	m := tenantFrom(fresh, old)
+	if _, _, notify := lacksIssued(m); notify {
+		t.Error("a tenant holding the password is planned for again")
+	}
+	fresh.Notify.Password = ""
+	if m = tenantFrom(fresh, m); m.NotifyPassword.ValueString() != "ntfy-pw" {
+		t.Errorf("a plain read lost the ntfy password: %v", m.NotifyPassword)
+	}
+	if m.NotifyTopicPrefix.ValueString() != "eds-" || m.NotifyUsername.ValueString() != "eds" {
+		t.Errorf("model = %+v", m)
 	}
 }

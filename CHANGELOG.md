@@ -10,6 +10,22 @@ new resources and attributes need.
 
 ## Unreleased
 
+### Added
+
+- `deevnet_alert_rule_group`: a group of alert rules over the tenant's metrics or its logs
+  (ADR-0023 §5, CHG-0071). Each runs in the tenant's own vmalert with its log read token, and its
+  alerts reach the ntfy topic `<tenant>-<topic>` (`ntfy_topic`). A rule vmalert won't load, or one
+  that sets the `tenant` label, fails the apply with the API's reason. Needs Deevnet API v0.25.0
+  and a site with alerting.
+- `deevnet_tenant` exports `notify_endpoint`, `notify_username`, `notify_topic_prefix` and the
+  sensitive `notify_password`: the ntfy login the tenant's phone uses, on site, to receive its
+  alerts. Empty at a site without alerting.
+
+### Upgrading
+
+- A tenant created before its site had alerting gets `notify_password` on its next apply, which
+  plans an update to fetch it, as `dashboard_password` did.
+
 ## 0.12.0 (2026-11-14)
 
 ### Changed

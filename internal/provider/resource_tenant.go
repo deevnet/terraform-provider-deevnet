@@ -67,6 +67,10 @@ type tenantModel struct {
 	DashboardOrgID    types.Int64  `tfsdk:"dashboard_org_id"`
 	DashboardUsername types.String `tfsdk:"dashboard_username"`
 	DashboardPassword types.String `tfsdk:"dashboard_password"`
+	NotifyEndpoint    types.String `tfsdk:"notify_endpoint"`
+	NotifyUsername    types.String `tfsdk:"notify_username"`
+	NotifyPassword    types.String `tfsdk:"notify_password"`
+	NotifyTopicPrefix types.String `tfsdk:"notify_topic_prefix"`
 
 	APIToken types.String `tfsdk:"api_token"`
 }
@@ -181,6 +185,17 @@ func (r *tenantResource) Schema(_ context.Context, _ resource.SchemaRequest, res
 					"site and on the take-home Pi.",
 				PlanModifiers: []planmodifier.String{stringplanmodifier.UseStateForUnknown()},
 			},
+			"notify_endpoint": computedString("The ntfy server this tenant's phone subscribes to for its alerts " +
+				"(ADR-0023 §5), on site only. Empty at a site without alerting."),
+			"notify_username":     computedString("The tenant's ntfy login. It reads the topics starting `notify_topic_prefix`, and publishes nowhere."),
+			"notify_topic_prefix": computedString("`<tenant>-`. A `deevnet_alert_rule_group`'s alerts go to `<tenant>-<topic>`; subscribe to that."),
+			"notify_password": schema.StringAttribute{
+				Computed:  true,
+				Sensitive: true,
+				MarkdownDescription: "The ntfy login's password, for the phone's ntfy app. Issued by the API, which keeps it " +
+					"sealed, so a reconcile can hand it back.",
+				PlanModifiers: []planmodifier.String{stringplanmodifier.UseStateForUnknown()},
+			},
 			"api_token": schema.StringAttribute{
 				Computed:            true,
 				Sensitive:           true,
@@ -222,8 +237,8 @@ func (r *tenantResource) ModifyPlan(ctx context.Context, req resource.ModifyPlan
 	}
 	gone := state.Present.Equal(types.BoolValue(false))
 	unreadable := state.SecretsStored.Equal(types.BoolValue(false))
-	missingLog, missingDashboard := lacksIssued(state)
-	if !gone && !unreadable && !missingLog && !missingDashboard {
+	missingLog, missingDashboard, missingNotify := lacksIssued(state)
+	if !gone && !unreadable && !missingLog && !missingDashboard && !missingNotify {
 		return
 	}
 	var plan tenantModel
@@ -257,6 +272,9 @@ func (r *tenantResource) ModifyPlan(ctx context.Context, req resource.ModifyPlan
 		}
 		if missingDashboard {
 			plan.DashboardPassword = types.StringUnknown()
+		}
+		if missingNotify {
+			plan.NotifyPassword = types.StringUnknown()
 		}
 		// Every restore may come back with another state secret: one the
 		// operator reissued since this state last held it, which the API keeps
@@ -306,6 +324,10 @@ func (r *tenantResource) ModifyPlan(ctx context.Context, req resource.ModifyPlan
 	plan.DashboardOrgID = types.Int64Unknown()
 	plan.DashboardUsername = types.StringUnknown()
 	plan.DashboardPassword = types.StringUnknown()
+	plan.NotifyEndpoint = types.StringUnknown()
+	plan.NotifyUsername = types.StringUnknown()
+	plan.NotifyTopicPrefix = types.StringUnknown()
+	plan.NotifyPassword = types.StringUnknown()
 	plan.APIToken = types.StringUnknown()
 	resp.Diagnostics.Append(resp.Plan.Set(ctx, plan)...)
 }
@@ -423,6 +445,10 @@ func tenantFrom(t client.Tenant, prior tenantModel) tenantModel {
 		DashboardOrgID:    types.Int64Value(t.Dashboard.OrgID),
 		DashboardUsername: types.StringValue(t.Dashboard.Username),
 		DashboardPassword: keep(t.Dashboard.Password, prior.DashboardPassword),
+		NotifyEndpoint:    types.StringValue(t.Notify.Endpoint),
+		NotifyUsername:    types.StringValue(t.Notify.Username),
+		NotifyTopicPrefix: types.StringValue(t.Notify.TopicPrefix),
+		NotifyPassword:    keep(t.Notify.Password, prior.NotifyPassword),
 		TSIGSecret:        keep(t.DNS.TSIGSecret, prior.TSIGSecret),
 		StateSecretKey:    keep(t.State.SecretKey, prior.StateSecretKey),
 		APIToken:          keep(t.APIToken, prior.APIToken),
@@ -430,13 +456,14 @@ func tenantFrom(t client.Tenant, prior tenantModel) tenantModel {
 	return m
 }
 
-// lacksIssued reports whether the site has a log store, or dashboards, whose
-// credentials this state never received.
-func lacksIssued(m tenantModel) (log, dashboard bool) {
+// lacksIssued reports whether the site has a log store, dashboards or
+// alerting whose credentials this state never received.
+func lacksIssued(m tenantModel) (log, dashboard, notify bool) {
 	absent := func(v types.String) bool { return v.IsNull() || v.ValueString() == "" }
 	log = m.LogEndpoint.ValueString() != "" && (absent(m.LogIngestToken) || absent(m.LogReadToken))
 	dashboard = m.DashboardURL.ValueString() != "" && absent(m.DashboardPassword)
-	return log, dashboard
+	notify = m.NotifyEndpoint.ValueString() != "" && absent(m.NotifyPassword)
+	return log, dashboard, notify
 }
 
 func keep(fresh string, prior types.String) types.String {
