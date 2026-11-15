@@ -137,6 +137,16 @@ type Tenant struct {
 		Username string `json:"username,omitempty"`
 		Password string `json:"password,omitempty"`
 	} `json:"dashboard"`
+	// Notify is the tenant's ntfy login, for its phone (ADR-0023 §5,
+	// CHG-0071). The password appears on create and reconcile, like the
+	// dashboard's. Empty at a site without alerting, and from an API older
+	// than v0.25.0.
+	Notify struct {
+		Endpoint    string `json:"endpoint,omitempty"`
+		Username    string `json:"username,omitempty"`
+		Password    string `json:"password,omitempty"`
+		TopicPrefix string `json:"topic_prefix,omitempty"`
+	} `json:"notify"`
 	APIToken string `json:"api_token,omitempty"`
 	// SecretsStored is false when the API holds secrets for this tenant that it
 	// can no longer read, which is what a rebuilt or rotated Transit key leaves
@@ -251,6 +261,53 @@ func (c *Client) GetWiFiKey(ctx context.Context, tenant, name string) (WiFiKey, 
 
 func (c *Client) DeleteWiFiKey(ctx context.Context, tenant, name string) error {
 	return c.do(ctx, http.MethodDelete, "/v1/tenants/"+tenant+"/wifi-keys/"+name, nil, nil)
+}
+
+// AlertRule is one alerting rule in a group (ADR-0023 §5, CHG-0071).
+type AlertRule struct {
+	Alert       string            `json:"alert"`
+	Expr        string            `json:"expr"`
+	For         string            `json:"for,omitempty"`
+	Labels      map[string]string `json:"labels,omitempty"`
+	Annotations map[string]string `json:"annotations,omitempty"`
+}
+
+// AlertRuleGroup is one of a tenant's alert rule groups, replaced whole.
+type AlertRuleGroup struct {
+	Tenant    string      `json:"tenant"`
+	Name      string      `json:"name"`
+	Type      string      `json:"type"`
+	Interval  string      `json:"interval"`
+	Topic     string      `json:"topic"`
+	NtfyTopic string      `json:"ntfy_topic"`
+	Partition string      `json:"partition"`
+	Rules     []AlertRule `json:"rules"`
+}
+
+type PutAlertRuleGroupRequest struct {
+	Type      string      `json:"type"`
+	Interval  string      `json:"interval,omitempty"`
+	Topic     string      `json:"topic"`
+	Partition string      `json:"partition,omitempty"`
+	Rules     []AlertRule `json:"rules"`
+}
+
+// PutAlertRuleGroup creates or replaces a group. The API has vmalert check it
+// before recording it, so a rule vmalert would not load is an error here.
+func (c *Client) PutAlertRuleGroup(ctx context.Context, tenant, name string, req PutAlertRuleGroupRequest) (AlertRuleGroup, error) {
+	var out AlertRuleGroup
+	err := c.do(ctx, http.MethodPut, "/v1/tenants/"+tenant+"/alert-rule-groups/"+name, req, &out)
+	return out, err
+}
+
+func (c *Client) GetAlertRuleGroup(ctx context.Context, tenant, name string) (AlertRuleGroup, error) {
+	var out AlertRuleGroup
+	err := c.do(ctx, http.MethodGet, "/v1/tenants/"+tenant+"/alert-rule-groups/"+name, nil, &out)
+	return out, err
+}
+
+func (c *Client) DeleteAlertRuleGroup(ctx context.Context, tenant, name string) error {
+	return c.do(ctx, http.MethodDelete, "/v1/tenants/"+tenant+"/alert-rule-groups/"+name, nil, nil)
 }
 
 // Device is one of a tenant's edge devices in the registry (ADR-0012 §3).

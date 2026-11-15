@@ -61,6 +61,10 @@ output "state_credentials" {
 - `log_select_header` (String) The header a reader sends to choose a partition, for example `X-Deevnet-Partition: 2-1`. Without it a read returns project 0. It selects only among this tenant's partitions: the proxy sets the store's own headers itself.
 - `metrics_endpoint` (String) The metrics store this tenant pushes to with Prometheus remote write (`/api/v1/write`) and queries with the Prometheus API, using `log_ingest_token` and `log_read_token`. `log_select_header` chooses project 0 or 1 as for the logs. Empty at a site with none (ADR-0023).
 - `node` (String) Hypervisor the tenant's workloads land on.
+- `notify_endpoint` (String) The ntfy server this tenant's phone subscribes to for its alerts (ADR-0023 §5), on site only. Empty at a site without alerting.
+- `notify_password` (String, Sensitive) The ntfy login's password, for the phone's ntfy app. Issued by the API, which keeps it sealed, so a reconcile can hand it back.
+- `notify_topic_prefix` (String) `<tenant>-`. A `deevnet_alert_rule_group`'s alerts go to `<tenant>-<topic>`; subscribe to that.
+- `notify_username` (String) The tenant's ntfy login. It reads the topics starting `notify_topic_prefix`, and publishes nowhere.
 - `present` (Boolean) Whether the API still holds this tenant. False after the API's registry is lost, which makes the next apply restore it from this state rather than create a new one.
 - `secrets_stored` (Boolean) Whether the API can still read the secrets it holds for this tenant. False after its Transit key is rebuilt or rotated past them, which makes the next apply send this state's copies again - they are the authoritative ones.
 - `state_access_key` (String) State store access key.
