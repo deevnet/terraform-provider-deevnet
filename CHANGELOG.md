@@ -10,6 +10,8 @@ new resources and attributes need.
 
 ## Unreleased
 
+## 0.13.0 (2026-11-15)
+
 ### Added
 
 - `deevnet_alert_rule_group`: a group of alert rules over the tenant's metrics or its logs
